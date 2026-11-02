@@ -1,4 +1,4 @@
-"""The Flask web app: home page and statistics pages.
+"""The Flask web app: home page, statistics pages and the quiz.
 
 This module must never import `anthropic` (directly or indirectly): the app needs no API key.
 """
@@ -7,13 +7,24 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
-from flask import Flask, abort, current_app, g, render_template
+from flask import Flask, abort, current_app, g, redirect, render_template, request, url_for
+from werkzeug.wrappers import Response
 
+from flashcards import scheduler
 from flashcards.config import load_settings
-from flashcards.models import Stats
+from flashcards.models import Deck, Stats
 from flashcards.storage import CardStore, open_db
 
-MAX_DECK_ID = 2**63 - 1  # sqlite3 binds 64-bit ints only; a bigger id would raise OverflowError
+MAX_ID = 2**63 - 1  # sqlite3 binds 64-bit ints only; a bigger id would raise OverflowError
+MAX_GRADE = 5
+GRADE_LABELS = (
+    (0, "Blackout"),
+    (1, "Wrong"),
+    (2, "Wrong but familiar"),
+    (3, "Hard"),
+    (4, "Good"),
+    (5, "Perfect"),
+)
 NO_VALUE = "\N{EM DASH}"
 
 
@@ -26,11 +37,14 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
         app.config.from_mapping(test_config)
 
     app.teardown_appcontext(close_store)
+    app.register_error_handler(400, bad_request)
     app.register_error_handler(404, page_not_found)
     app.add_url_rule("/", "home", home)
     app.add_url_rule("/stats", "all_stats", all_stats)
-    app.add_url_rule(f"/decks/<int(max={MAX_DECK_ID}):deck_id>/stats", "deck_stats", deck_stats)
-    app.add_url_rule(f"/decks/<int(max={MAX_DECK_ID}):deck_id>/quiz", "quiz", quiz)
+    app.add_url_rule(f"/decks/<int(max={MAX_ID}):deck_id>/stats", "deck_stats", deck_stats)
+    app.add_url_rule(
+        f"/decks/<int(max={MAX_ID}):deck_id>/quiz", "quiz", quiz, methods=["GET", "POST"]
+    )
     return app
 
 
@@ -94,11 +108,77 @@ def deck_stats(deck_id: int) -> str:
     )
 
 
-def quiz(deck_id: int) -> tuple[str, int]:
-    """Placeholder until the quiz flow exists (batch 2.5); keeps the home page links valid."""
-    if get_store().get_deck(deck_id) is None:
+def quiz(deck_id: int) -> str | Response:
+    store = get_store()
+    deck = store.get_deck(deck_id)
+    if deck is None:
         abort(404)
-    return "The quiz is not available yet.", 501
+    if request.method == "POST":
+        return submit_grade(store, deck_id)
+    return show_quiz(store, deck)
+
+
+def show_quiz(store: CardStore, deck: Deck) -> str:
+    """The next due card (most overdue first), or the done page when nothing is due."""
+    due = store.due_cards(today(), deck.id)
+    previous = previous_card_note(store, deck.id)
+    if not due:
+        stats = store.stats(today(), deck.id)
+        return render_template(
+            "done.html",
+            deck=deck,
+            previous=previous,
+            reviewed_today=stats.reviewed_today,
+            accuracy_today=percent_text(stats.correct_today, stats.reviews_today),
+            next_due=NO_VALUE if stats.next_due is None else stats.next_due.isoformat(),
+        )
+    return render_template(
+        "quiz.html",
+        deck=deck,
+        card=due[0],
+        due_count=len(due),
+        previous=previous,
+        grades=GRADE_LABELS,
+    )
+
+
+def previous_card_note(store: CardStore, deck_id: int) -> dict[str, Any] | None:
+    """Feedback for `?prev=<card_id>`: when that card is next due. None if prev is unusable.
+
+    An invalid, unknown or foreign id, or a card that is still due today (so it was not just
+    reviewed), is ignored without an error.
+    """
+    card_id = request.args.get("prev", type=int)
+    if card_id is None or not 0 < card_id <= MAX_ID:
+        return None
+    card = store.get_card(card_id)
+    if card is None or card.deck_id != deck_id:
+        return None
+    days = (card.state.due_date - today()).days
+    if days <= 0:
+        return None
+    return {"due_date": card.state.due_date.isoformat(), "days": days}
+
+
+def submit_grade(store: CardStore, deck_id: int) -> Response:
+    """Apply one answer, then redirect (POST/redirect/GET) to the next card."""
+    card_id = request.form.get("card_id", type=int)
+    grade = request.form.get("grade", type=int)
+    if card_id is None or not 0 < card_id <= MAX_ID:
+        abort(400)
+    if grade is None or not 0 <= grade <= MAX_GRADE:
+        abort(400)
+    card = store.get_card(card_id)
+    if card is None or card.deck_id != deck_id:
+        abort(404)
+    if scheduler.is_due(card.state, today()):  # a repeated submit finds the card not due: no-op
+        new_state = scheduler.review(card.state, grade, today())
+        store.save_review(card_id, new_state, grade)
+    return redirect(url_for("quiz", deck_id=deck_id, prev=card_id), code=303)
+
+
+def bad_request(_error: Exception) -> tuple[str, int]:
+    return render_template("400.html"), 400
 
 
 def page_not_found(_error: Exception) -> tuple[str, int]:

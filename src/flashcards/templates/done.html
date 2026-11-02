@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Done for today: {{ deck.name }}{% endblock %}
+{% block content %}
+<h1>Done for today: {{ deck.name }}</h1>
+{% include "previous.html" %}
+<p>No cards are due in this subject.</p>
+<table class="stats">
+  <tbody>
+    <tr><th scope="row">Reviewed today</th><td>{{ reviewed_today }}</td></tr>
+    <tr><th scope="row">Accuracy today</th><td>{{ accuracy_today }}</td></tr>
+    <tr><th scope="row">Next due</th><td>{{ next_due }}</td></tr>
+  </tbody>
+</table>
+<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats for this subject</a> &middot;
+  <a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}
