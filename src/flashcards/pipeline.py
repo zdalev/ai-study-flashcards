@@ -1,14 +1,16 @@
 """Fill the database from a notes file. The card source is injected, so this never needs the API."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from flashcards.errors import GenerationError
+from flashcards.errors import DemoDataError, GenerationError
 from flashcards.ingest import load_chunks
 from flashcards.models import CardDraft
 from flashcards.storage import CardStore
+
+DEMO_VERSION = 1
 
 # Takes the text of one chunk and returns card drafts (generator.generate_cards, or a fake).
 CardSource = Callable[[str], list[CardDraft]]
@@ -75,3 +77,71 @@ def generate_deck(
         added += new_cards
         notify(f"{label}: {new_cards} new cards")
     return GenerateReport(deck.name, total, skipped, generated, empty, added)
+
+
+def build_demo_data(paths: Sequence[Path | str], card_source: CardSource) -> dict:
+    """Run the card source over every chunk of each notes file and return the demo-deck dict.
+
+    One deck per file, named after the file stem; `source` is the path as given. A file that
+    yields no cards at all raises GenerationError (a demo deck must not be empty). Nothing is
+    deduplicated here - `load_demo` skips repeated questions.
+    """
+    decks = []
+    for path in map(Path, paths):
+        cards = [
+            {"question": draft.question, "answer": draft.answer}
+            for chunk in load_chunks(path)
+            for draft in card_source(chunk.text)
+        ]
+        if not cards:
+            raise GenerationError(f"no cards were generated from {path}")
+        decks.append({"name": path.stem, "source": path.as_posix(), "cards": cards})
+    return {"version": DEMO_VERSION, "decks": decks}
+
+
+def load_demo(store: CardStore, data: object, today: date, now: datetime) -> int:
+    """Add the demo decks to the store (all cards due `today`) and return how many cards are new.
+
+    The whole shape is checked first, so a bad file changes nothing. Decks that exist are reused
+    and questions already in a deck are skipped, so a second run returns 0.
+    """
+    decks = _validated_demo_decks(data)
+    added = 0
+    for name, source, drafts in decks:
+        deck = store.get_or_create_deck(name, source, now)
+        added += store.add_cards(deck.id, drafts, today, now)
+    return added
+
+
+def _validated_demo_decks(data: object) -> list[tuple[str, str | None, list[CardDraft]]]:
+    if not isinstance(data, dict) or data.get("version") != DEMO_VERSION:
+        raise DemoDataError(f'demo data must be an object with "version": {DEMO_VERSION}')
+    entries = data.get("decks")
+    if not isinstance(entries, list) or not entries:
+        raise DemoDataError('demo data needs a non-empty "decks" list')
+    decks = []
+    for position, entry in enumerate(entries, start=1):
+        where = f"deck {position}"
+        if not isinstance(entry, dict):
+            raise DemoDataError(f"{where} must be an object")
+        name, source, cards = entry.get("name"), entry.get("source"), entry.get("cards")
+        if not isinstance(name, str) or not name.strip():
+            raise DemoDataError(f'{where} needs a non-empty "name"')
+        if source is not None and not isinstance(source, str):
+            raise DemoDataError(f'{where} ("{name}"): "source" must be text')
+        if not isinstance(cards, list):
+            raise DemoDataError(f'{where} ("{name}") needs a "cards" list')
+        drafts = [
+            _validated_demo_card(card, f'{where} ("{name}")', n) for n, card in enumerate(cards, 1)
+        ]
+        decks.append((name, source, drafts))
+    return decks
+
+
+def _validated_demo_card(card: object, where: str, number: int) -> CardDraft:
+    if not isinstance(card, dict):
+        raise DemoDataError(f"{where}, card {number} must be an object")
+    question, answer = card.get("question"), card.get("answer")
+    if not all(isinstance(text, str) and text.strip() for text in (question, answer)):
+        raise DemoDataError(f"{where}, card {number} needs a non-empty question and answer")
+    return CardDraft(question=question, answer=answer)
