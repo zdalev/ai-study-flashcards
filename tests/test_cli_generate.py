@@ -10,7 +10,7 @@ import pytest
 from fakes import FakeClient, cards_response
 from flashcards import generator
 from flashcards.cli import Deps, build_parser, main
-from flashcards.errors import GenerationError
+from flashcards.errors import ApiKeyError
 
 NOW = datetime(2026, 11, 2, 9, 0, 0)
 TODAY = date(2026, 11, 2)
@@ -50,8 +50,8 @@ def test_generate_prints_progress_and_summary_and_stores_cards(notes, tmp_path, 
     assert code == 0
     out = capsys.readouterr().out.splitlines()
     assert out == [
-        "chunk 1/1: 1 new cards",
-        "deck 'biology': 1 new cards from 1 of 1 chunks",
+        "chunk 1/1: 1 new card",
+        "deck 'biology': 1 new card from 1 of 1 chunk",
     ]
     assert read_db(
         db, "SELECT d.name, c.question FROM cards c JOIN decks d ON d.id = c.deck_id"
@@ -127,7 +127,7 @@ def test_chunk_without_cards_is_reported_and_not_marked_done(notes, tmp_path, ca
     assert code == 0
     out = capsys.readouterr().out
     assert "no cards returned" in out
-    assert "1 chunks returned no cards, run again to retry them" in out
+    assert "1 chunk returned no cards, run again to retry them" in out
     assert read_db(db, "SELECT count(*) FROM chunks") == [(0,)]
 
 
@@ -144,15 +144,12 @@ def test_authentication_error_gives_exit_1_with_the_key_message(notes, tmp_path,
 
     assert code == 1
     err = capsys.readouterr().err
-    assert err.startswith("error: chunk 1/1: ")
-    assert generator.KEY_MESSAGE in err
-    assert err.count("\n") == 1
-    assert "Traceback" not in err
+    assert err == f"error: {generator.KEY_MESSAGE}\n"  # no "chunk 1/1" or "run again" noise
 
 
 def test_missing_key_from_the_client_factory_gives_exit_1(notes, tmp_path, capsys):
     def no_key(api_key):
-        raise GenerationError(generator.KEY_MESSAGE)
+        raise ApiKeyError(generator.KEY_MESSAGE)
 
     deps = Deps(today=lambda: TODAY, now=lambda: NOW, client_factory=no_key)
 

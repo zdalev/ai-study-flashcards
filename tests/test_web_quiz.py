@@ -1,10 +1,11 @@
 import re
 import sqlite3
+import threading
 from datetime import timedelta
 
 import pytest
-from tests.conftest import WEB_TODAY
 
+from conftest import WEB_TODAY
 from flashcards.storage import CardStore, open_db
 
 HOSTILE = "<script>alert(1)</script>"
@@ -183,6 +184,29 @@ def test_double_submit_is_ignored(client, seed, db_path):
     assert response.headers["Location"].endswith("?prev=1")
     assert snapshot(db_path) == before
     assert len(before[1]) == 1
+
+
+def test_parallel_submits_of_the_same_card_log_one_review(app, seed, db_path):
+    deck_id = seed("Biology", questions=("A?", "B?"))
+    threads = 8
+    start = threading.Barrier(threads)
+    statuses = []
+
+    def submit():
+        client = app.test_client()
+        start.wait(timeout=10)
+        statuses.append(post(client, deck_id, 1, 5).status_code)
+
+    workers = [threading.Thread(target=submit) for _ in range(threads)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=30)
+
+    assert statuses == [303] * threads
+    _cards, reviews = snapshot(db_path)
+    assert reviews == [(1, WEB_TODAY.isoformat(), 5)]
+    assert card_row(db_path, 1).state.repetitions == 1
 
 
 def test_a_card_not_due_yet_is_not_reviewed(client, seed, db_path):

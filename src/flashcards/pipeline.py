@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from flashcards.errors import DemoDataError, GenerationError
+from flashcards.errors import ApiKeyError, DemoDataError, GenerationError
 from flashcards.ingest import load_chunks
 from flashcards.models import CardDraft
 from flashcards.storage import CardStore
@@ -44,7 +44,8 @@ def generate_deck(
 
     Chunks already stored for the deck are skipped, so a second run makes no calls. Each new
     chunk is saved on its own. The first GenerationError stops the run and is raised again with
-    the chunk position; chunks saved before it stay saved, and the same command continues there.
+    the chunk position (an ApiKeyError is raised as is); chunks saved before it stay saved, and
+    the same command continues there.
     """
     notes_path = Path(notes_path)
     chunks = load_chunks(notes_path)
@@ -61,11 +62,13 @@ def generate_deck(
             continue
         try:
             drafts = card_source(chunk.text)
+        except ApiKeyError:
+            raise  # a key problem has nothing to do with this chunk: keep the one-line message
         except GenerationError as error:
             saved = generated
-            noun = "chunk" if saved == 1 else "chunks"
             raise GenerationError(
-                f"{label}: {error} - {saved} {noun} saved, run the same command again to continue"
+                f"{label}: {error} - {count_noun(saved, 'chunk')} saved, "
+                "run the same command again to continue"
             ) from error
         if not drafts:
             # No digest: add_cards would record the chunk as done and it would never be retried.
@@ -75,8 +78,13 @@ def generate_deck(
         new_cards = store.add_cards(deck.id, drafts, today, now, chunk_digest=chunk.digest)
         generated += 1
         added += new_cards
-        notify(f"{label}: {new_cards} new cards")
+        notify(f"{label}: {count_noun(new_cards, 'new card')}")
     return GenerateReport(deck.name, total, skipped, generated, empty, added)
+
+
+def count_noun(number: int, noun: str) -> str:
+    """'1 card' / '2 cards'."""
+    return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
 
 
 def build_demo_data(paths: Sequence[Path | str], card_source: CardSource) -> dict:

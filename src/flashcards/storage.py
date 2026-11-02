@@ -324,19 +324,25 @@ class CardStore:
 
     # --- reviews ---
 
-    def save_review(self, card_id: int, state: ReviewState, grade: int) -> None:
+    def save_review(self, card_id: int, state: ReviewState, grade: int) -> bool:
         """Store the card's new state and log the review, in one transaction.
 
-        The review is logged on `state.last_reviewed`. Raises StorageError for an unknown
-        card, a state without `last_reviewed`, or a grade outside 0..5; nothing is saved then.
+        The review is logged on `state.last_reviewed`, and it only applies while the card is
+        still due on that day. Returns False (nothing saved) when it is not: a repeated or
+        parallel submit of the same answer therefore logs one review, not several. Raises
+        StorageError for an unknown card, a state without `last_reviewed`, or a grade outside
+        0..5; nothing is saved then.
         """
         if state.last_reviewed is None:
             raise StorageError("a reviewed state needs last_reviewed")
         reviewed_on = _iso(state.last_reviewed)
         with _db_errors("saving a review"), self._conn:
+            # The write lock is taken before the row is read, so a parallel save waits and then
+            # sees the new due date. `due_date <= ?` makes the update (and the log row) happen
+            # at most once per due date.
             cursor = self._conn.execute(
                 "UPDATE cards SET ease_factor = ?, interval_days = ?, repetitions = ?,"
-                " due_date = ?, last_reviewed = ? WHERE id = ?",
+                " due_date = ?, last_reviewed = ? WHERE id = ? AND due_date <= ?",
                 (
                     state.ease_factor,
                     state.interval_days,
@@ -344,14 +350,19 @@ class CardStore:
                     _iso(state.due_date),
                     reviewed_on,
                     card_id,
+                    reviewed_on,
                 ),
             )
             if cursor.rowcount != 1:
-                raise StorageError(f"no card with id {card_id}")
+                exists = self._conn.execute("SELECT 1 FROM cards WHERE id = ?", (card_id,))
+                if exists.fetchone() is None:
+                    raise StorageError(f"no card with id {card_id}")
+                return False
             self._conn.execute(
                 "INSERT INTO reviews (card_id, reviewed_on, grade) VALUES (?, ?, ?)",
                 (card_id, reviewed_on, grade),
             )
+        return True
 
     # --- statistics ---
 
