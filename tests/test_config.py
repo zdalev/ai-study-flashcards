@@ -1,7 +1,11 @@
 import os
+from datetime import date
 from pathlib import Path
 
+import pytest
+
 from flashcards.config import Settings, load_settings
+from flashcards.errors import ConfigError
 
 
 def test_defaults():
@@ -9,6 +13,7 @@ def test_defaults():
     assert settings.model == "claude-haiku-5-5"
     assert settings.db_path == Path("flashcards.db")
     assert settings.api_key is None
+    assert settings.today is None
 
 
 def test_env_vars_override_defaults(monkeypatch):
@@ -70,3 +75,15 @@ def test_empty_real_env_var_does_not_hide_a_dotenv_value(tmp_path, monkeypatch):
     (tmp_path / ".env").write_text("FLASHCARDS_MODEL=model-from-file\n")
     monkeypatch.setenv("FLASHCARDS_MODEL", "")
     assert load_settings().model == "model-from-file"
+
+
+def test_today_is_read_from_the_environment(monkeypatch):
+    monkeypatch.setenv("FLASHCARDS_TODAY", "2026-11-02")
+    assert load_settings().today == date(2026, 11, 2)
+
+
+@pytest.mark.parametrize("value", ["tomorrow", "2026-13-01", "02/11/2026"])
+def test_invalid_today_is_a_config_error(monkeypatch, value):
+    monkeypatch.setenv("FLASHCARDS_TODAY", value)
+    with pytest.raises(ConfigError, match="FLASHCARDS_TODAY"):
+        load_settings()

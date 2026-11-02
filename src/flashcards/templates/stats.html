@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% set heading = deck.name if deck else "All subjects" %}
+{% block title %}Stats: {{ heading }}{% endblock %}
+{% block content %}
+<h1>Stats: {{ heading }}</h1>
+<table class="stats">
+  <tbody>
+    <tr><th scope="row">Accuracy today</th><td>{{ figures.accuracy_today }}</td></tr>
+    <tr><th scope="row">Accuracy all time</th><td>{{ figures.accuracy_all_time }}</td></tr>
+    <tr><th scope="row">Cards</th><td>{{ figures.total_cards }}</td></tr>
+    <tr><th scope="row">Due today</th><td>{{ figures.due_today }}</td></tr>
+    <tr><th scope="row">Reviewed today</th><td>{{ figures.reviewed_today }}</td></tr>
+    <tr><th scope="row">Mature cards</th><td>{{ figures.mature_cards }}</td></tr>
+    <tr><th scope="row">New cards</th><td>{{ figures.new_cards }}</td></tr>
+    <tr><th scope="row">Average ease</th><td>{{ figures.average_ease }}</td></tr>
+    <tr><th scope="row">Next due</th><td>{{ figures.next_due }}</td></tr>
+  </tbody>
+</table>
+<p>
+  {% if deck %}<a href="{{ url_for('quiz', deck_id=deck.id) }}">Study this subject</a> &middot;
+  <a href="{{ url_for('all_stats') }}">All subjects stats</a> &middot;{% endif %}
+  <a href="{{ url_for('home') }}">Back to subjects</a>
+</p>
+{% endblock %}

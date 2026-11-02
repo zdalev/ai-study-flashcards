@@ -19,3 +19,7 @@ class GenerationError(FlashcardsError):
 
 class DemoDataError(FlashcardsError):
     """The demo deck file is missing, is not valid JSON, or has the wrong shape."""
+
+
+class ConfigError(FlashcardsError):
+    """A setting in the environment or `.env` has an invalid value."""
