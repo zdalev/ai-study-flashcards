@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Subjects{% endblock %}
+{% block content %}
+<h1>Subjects</h1>
+{% if summaries %}
+<ul class="decks">
+  {% for summary in summaries %}
+  <li class="deck">
+    <div class="deck-info">
+      <h2>{{ summary.deck.name }}</h2>
+      <p class="muted">
+        {{ summary.cards }} {{ "card" if summary.cards == 1 else "cards" }}
+        &middot;
+        <span class="due{% if summary.due %} has-due{% endif %}">{{ summary.due }} due</span>
+      </p>
+    </div>
+    <div class="deck-actions">
+      <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id) }}">Study</a>
+      <a class="button secondary" href="{{ url_for('deck_stats', deck_id=summary.deck.id) }}">Stats</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+<p><a href="{{ url_for('all_stats') }}">All subjects stats</a></p>
+{% else %}
+<div class="empty">
+  <p>There are no subjects yet.</p>
+  <p>Run <code>flashcards load-demo</code> to load the demo decks, or
+     <code>flashcards generate NOTES</code> to make cards from your own notes.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -18,6 +18,8 @@ from flashcards.pipeline import CardSource, GenerateReport, generate_deck, load_
 from flashcards.storage import CardStore, open_db
 
 DEFAULT_DEMO_FILE = Path("examples") / "demo-cards.json"
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 5000
 
 
 def _make_claude_client(api_key: str | None) -> Any:
@@ -63,7 +65,27 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help=f"demo deck file (default: {DEFAULT_DEMO_FILE.as_posix()}, relative to the cwd)",
     )
+    serve = commands.add_parser("serve", help="start the web app (study in the browser)")
+    serve.add_argument(
+        "--host", default=DEFAULT_HOST, help=f"address to listen on (default: {DEFAULT_HOST})"
+    )
+    serve.add_argument(
+        "--port",
+        type=_port,
+        default=DEFAULT_PORT,
+        help=f"port to listen on (default: {DEFAULT_PORT})",
+    )
     return parser
+
+
+def _port(text: str) -> int:
+    try:
+        port = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid port: {text!r}") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be between 1 and 65535, got {port}")
+    return port
 
 
 def main(argv: Sequence[str] | None = None, deps: Deps | None = None) -> int:
@@ -116,6 +138,21 @@ def _cmd_load_demo(args: argparse.Namespace, deps: Deps) -> int:
         added = load_demo(store, data, args.today or deps.today(), deps.now())
     decks = len(data["decks"])  # load_demo has checked the shape
     print(f"Loaded {added} cards into {decks} {'deck' if decks == 1 else 'decks'}")
+    return 0
+
+
+def _cmd_serve(args: argparse.Namespace, deps: Deps) -> int:
+    """Run the web app. Needs no API key; `anthropic` is never imported."""
+    from flashcards.web import create_app
+
+    config: dict[str, Any] = {}
+    if args.db is not None:
+        config["DATABASE"] = str(args.db)
+    if args.today is not None:
+        config["TODAY"] = args.today
+    app = create_app(config)
+    # debug stays off (no remote debugger); load_dotenv=False keeps .env out of os.environ.
+    app.run(host=args.host, port=args.port, debug=False, load_dotenv=False)
     return 0
 
 
@@ -172,4 +209,5 @@ def _summary(report: GenerateReport) -> str:
 _COMMANDS: dict[str, Callable[[argparse.Namespace, Deps], int]] = {
     "generate": _cmd_generate,
     "load-demo": _cmd_load_demo,
+    "serve": _cmd_serve,
 }
