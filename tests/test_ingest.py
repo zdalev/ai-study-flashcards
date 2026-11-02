@@ -118,6 +118,26 @@ class TestChunkText:
         chunks = chunk_text(f"{filler}\n  \t\n{filler}", max_chars=200)
         assert chunks == [filler, filler]
 
+    @pytest.mark.parametrize("marker", ["#", "##", "###", "####", "#####", "######"])
+    def test_every_heading_level_stays_with_the_paragraph_after_it(self, marker):
+        first, second = "a" * 120, "b" * 120
+        chunks = chunk_text(f"{first}\n\n{marker} Title\n\n{second}", max_chars=200)
+        assert chunks == [first, f"{marker} Title\n\n{second}"]
+
+    def test_multi_line_block_starting_with_hash_is_not_a_heading(self):
+        first, note, second = "a" * 100, "# Not a title\nbody", "b" * 100
+        chunks = chunk_text(f"{first}\n\n{note}\n\n{second}", max_chars=200)
+        assert chunks == [f"{first}\n\n{note}", second]
+
+    def test_sentence_split_keeps_one_space_between_sentences(self):
+        text = " ".join(f"Sentence number {i:03d} says something." for i in range(60))
+        chunks = chunk_text(text, max_chars=400)
+        assert len(chunks) > 1
+        assert " ".join(chunks) == text
+
+    def test_blank_line_with_spaces_separates_short_paragraphs(self):
+        assert chunk_text("a\n \nb") == ["a\n\nb"]
+
 
 class TestDigest:
     def test_is_sha256_of_whitespace_collapsed_text(self):

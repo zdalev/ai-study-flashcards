@@ -1,8 +1,12 @@
 import subprocess
 import sys
+from pathlib import Path
 
-from flashcards import __version__
+import pytest
+
+from flashcards import __version__, cli
 from flashcards.cli import Deps, build_parser, main
+from flashcards.errors import IngestError
 
 
 def test_help_exits_zero(capsys):
@@ -44,3 +48,27 @@ def test_python_dash_m_flashcards_version():
     )
     assert result.returncode == 0
     assert __version__ in result.stdout
+
+
+def test_db_option_is_parsed_as_a_path():
+    assert build_parser().parse_args(["--db", "some/dir/cards.db"]).db == Path("some/dir/cards.db")
+
+
+def test_handled_error_is_one_line_on_stderr_with_exit_code_1(monkeypatch, capsys):
+    def fail(args, parser, deps):
+        raise IngestError("cannot read notes file x.md")
+
+    monkeypatch.setattr(cli, "_run", fail)
+    assert main(["--today", "2026-11-02"]) == 1
+    captured = capsys.readouterr()
+    assert captured.err == "error: cannot read notes file x.md\n"
+    assert captured.out == ""
+
+
+def test_unexpected_errors_are_not_swallowed(monkeypatch):
+    def crash(args, parser, deps):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(cli, "_run", crash)
+    with pytest.raises(RuntimeError):
+        main([])
