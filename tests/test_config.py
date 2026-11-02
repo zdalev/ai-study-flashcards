@@ -64,3 +64,9 @@ def test_os_environ_is_not_modified(tmp_path):
     before = dict(os.environ)
     load_settings()
     assert dict(os.environ) == before
+
+
+def test_empty_real_env_var_does_not_hide_a_dotenv_value(tmp_path, monkeypatch):
+    (tmp_path / ".env").write_text("FLASHCARDS_MODEL=model-from-file\n")
+    monkeypatch.setenv("FLASHCARDS_MODEL", "")
+    assert load_settings().model == "model-from-file"

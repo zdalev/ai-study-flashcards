@@ -141,6 +141,10 @@ class TestDecks:
         assert deck.name == "World War II"
         assert store.find_deck("world war ii") == deck
 
+    def test_find_deck_ignores_case_and_extra_whitespace(self, store):
+        deck = store.get_or_create_deck("World War II", None, NOW)
+        assert store.find_deck("  world   war ii ") == deck
+
     def test_empty_name_is_rejected(self, store):
         with pytest.raises(StorageError):
             store.get_or_create_deck("   ", None, NOW)
@@ -191,6 +195,15 @@ class TestAddCards:
         assert add(store, deck, decomposed) == 1
         assert add(store, deck, precomposed) == 0
         assert store.due_cards(TODAY)[0].question == precomposed
+
+    def test_answer_is_normalised_to_nfc(self, store, deck):
+        store.add_cards(deck.id, [draft("Q", "Cafe\u0301")], TODAY, NOW)
+        assert store.due_cards(TODAY)[0].answer == "Caf\u00e9"
+
+    def test_created_at_is_the_given_time_not_the_due_day(self, store, deck):
+        add(store, deck, "Q1", today=YESTERDAY)
+        row = store._conn.execute("SELECT created_at FROM cards").fetchone()
+        assert row["created_at"] == "2026-03-10T09:30:00"
 
     def test_digest_is_recorded_per_deck(self, store, deck):
         other = store.get_or_create_deck("Chemistry", None, NOW)
@@ -401,6 +414,21 @@ class TestStats:
         review_card(store, second, 2, TODAY)
         stats = store.stats(TODAY)
         assert (stats.reviews_total, stats.correct_total) == (2, 1)
+
+    def test_grade_three_today_counts_as_correct_today(self, store, deck):
+        add(store, deck, "Q1")
+        review_card(store, store.due_cards(TODAY)[0].id, 3, TODAY)
+        stats = store.stats(TODAY)
+        assert (stats.reviews_today, stats.correct_today) == (1, 1)
+        assert stats.accuracy_today == 1.0
+
+    def test_card_due_today_is_due_but_next_due_is_after_today(self, store, deck):
+        add(store, deck, "Q1")  # due today
+        add(store, deck, "Q2", today=TODAY + timedelta(days=2))
+        add(store, deck, "Q3", today=TODAY + timedelta(days=5))
+        stats = store.stats(TODAY)
+        assert stats.due_today == 1
+        assert stats.next_due == TODAY + timedelta(days=2)
 
     def test_stats_for_a_deck_without_cards_are_empty(self, store, deck):
         stats = store.stats(TODAY, deck_id=deck.id)
