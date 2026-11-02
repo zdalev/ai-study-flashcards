@@ -15,3 +15,7 @@ class StorageError(FlashcardsError):
 
 class GenerationError(FlashcardsError):
     """Card generation with Claude failed."""
+
+
+class DemoDataError(FlashcardsError):
+    """The demo deck file is missing, is not valid JSON, or has the wrong shape."""
