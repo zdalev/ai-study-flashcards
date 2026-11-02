@@ -323,14 +323,6 @@ def test_serving_the_app_does_not_import_anthropic(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-# --- the quiz placeholder (replaced by batch 2.5) ---
-
-
-def test_quiz_link_target_exists_for_a_known_deck(client, seed):
-    deck_id = seed("Biology")
-    assert client.get(f"/decks/{deck_id}/quiz").status_code == 501
-
-
 # --- serve ---
 
 
