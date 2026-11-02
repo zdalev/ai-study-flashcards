@@ -223,7 +223,7 @@ def test_load_demo_command_default_file_is_relative_to_the_working_directory(tmp
     code = main(["--db", str(tmp_path / "cards.db"), "load-demo"], DEPS)
 
     assert code == 0
-    assert capsys.readouterr().out.strip() == "Loaded 1 cards into 1 deck"
+    assert capsys.readouterr().out.strip() == "Loaded 1 card into 1 deck"
 
 
 def test_load_demo_command_missing_file_is_a_clean_error(tmp_path, capsys):

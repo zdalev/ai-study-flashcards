@@ -8,7 +8,7 @@ import json
 
 import anthropic
 
-from flashcards.errors import GenerationError
+from flashcards.errors import ApiKeyError, GenerationError
 from flashcards.models import CardDraft
 
 MAX_CARDS = 8
@@ -66,10 +66,10 @@ def make_client(api_key: str | None = None) -> anthropic.Anthropic:
     try:
         client = anthropic.Anthropic(api_key=api_key)
     except anthropic.CredentialsError as error:  # a broken ANTHROPIC_PROFILE / config folder
-        raise GenerationError(KEY_MESSAGE) from error
+        raise ApiKeyError(KEY_MESSAGE) from error
     has_credentials = client.api_key or client.auth_token or getattr(client, "credentials", None)
     if not has_credentials:
-        raise GenerationError(KEY_MESSAGE)
+        raise ApiKeyError(KEY_MESSAGE)
     return client
 
 
@@ -126,7 +126,7 @@ def generate_cards(
             output_config={"format": {"type": "json_schema", "schema": CARDS_SCHEMA}},
         )
     except anthropic.AuthenticationError as error:
-        raise GenerationError(KEY_MESSAGE) from error
+        raise ApiKeyError(KEY_MESSAGE) from error
     except anthropic.APIError as error:
         # Only the message: `error.request` holds the headers, and with them the key.
         raise GenerationError(f"Claude API request failed: {error.message}") from error

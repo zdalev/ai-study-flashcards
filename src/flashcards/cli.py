@@ -14,7 +14,7 @@ from flashcards import __version__
 from flashcards.config import load_settings
 from flashcards.errors import DemoDataError, FlashcardsError
 from flashcards.models import CardDraft
-from flashcards.pipeline import CardSource, GenerateReport, generate_deck, load_demo
+from flashcards.pipeline import CardSource, GenerateReport, count_noun, generate_deck, load_demo
 from flashcards.storage import CardStore, open_db
 
 DEFAULT_DEMO_FILE = Path("examples") / "demo-cards.json"
@@ -137,7 +137,7 @@ def _cmd_load_demo(args: argparse.Namespace, deps: Deps) -> int:
     with CardStore(open_db(args.db or settings.db_path)) as store:
         added = load_demo(store, data, args.today or deps.today(), deps.now())
     decks = len(data["decks"])  # load_demo has checked the shape
-    print(f"Loaded {added} cards into {decks} {'deck' if decks == 1 else 'decks'}")
+    print(f"Loaded {count_noun(added, 'card')} into {count_noun(decks, 'deck')}")
     return 0
 
 
@@ -196,13 +196,16 @@ def _summary(report: GenerateReport) -> str:
     if report.up_to_date:
         return f"deck '{report.deck_name}' is up to date"
     summary = (
-        f"deck '{report.deck_name}': {report.cards_added} new cards from "
-        f"{report.chunks_generated} of {report.chunks_total} chunks"
+        f"deck '{report.deck_name}': {count_noun(report.cards_added, 'new card')} from "
+        f"{report.chunks_generated} of {count_noun(report.chunks_total, 'chunk')}"
     )
     if report.chunks_skipped:
         summary += f" ({report.chunks_skipped} already done)"
     if report.chunks_empty:
-        summary += f"; {report.chunks_empty} chunks returned no cards, run again to retry them"
+        summary += (
+            f"; {count_noun(report.chunks_empty, 'chunk')} returned no cards, "
+            "run again to retry them"
+        )
     return summary
 
 

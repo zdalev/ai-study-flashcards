@@ -12,6 +12,7 @@ from werkzeug.wrappers import Response
 
 from flashcards import scheduler
 from flashcards.config import load_settings
+from flashcards.errors import StorageError
 from flashcards.models import Deck, Stats
 from flashcards.storage import CardStore, open_db
 
@@ -39,6 +40,7 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
     app.teardown_appcontext(close_store)
     app.register_error_handler(400, bad_request)
     app.register_error_handler(404, page_not_found)
+    app.register_error_handler(StorageError, storage_failed)
     app.add_url_rule("/", "home", home)
     app.add_url_rule("/stats", "all_stats", all_stats)
     app.add_url_rule(f"/decks/<int(max={MAX_ID}):deck_id>/stats", "deck_stats", deck_stats)
@@ -173,6 +175,7 @@ def submit_grade(store: CardStore, deck_id: int) -> Response:
         abort(404)
     if scheduler.is_due(card.state, today()):  # a repeated submit finds the card not due: no-op
         new_state = scheduler.review(card.state, grade, today())
+        # False: a parallel request reviewed the card first, so this one is dropped as well.
         store.save_review(card_id, new_state, grade)
     return redirect(url_for("quiz", deck_id=deck_id, prev=card_id), code=303)
 
@@ -183,3 +186,9 @@ def bad_request(_error: Exception) -> tuple[str, int]:
 
 def page_not_found(_error: Exception) -> tuple[str, int]:
     return render_template("404.html"), 404
+
+
+def storage_failed(error: Exception) -> tuple[str, int]:
+    """A friendly 500 page; the details go to the log, not into the page."""
+    current_app.logger.error("database error: %s", error)
+    return render_template("500.html"), 500

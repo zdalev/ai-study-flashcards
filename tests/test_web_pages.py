@@ -6,8 +6,8 @@ from datetime import date, timedelta
 
 import pytest
 from flask import Flask
-from tests.conftest import WEB_TODAY
 
+from conftest import WEB_TODAY
 from flashcards import web
 from flashcards.cli import main
 from flashcards.models import ReviewState
@@ -31,7 +31,11 @@ def review(db_path, card_id, grade, reviewed_on=WEB_TODAY, interval=1, ease=2.5)
         last_reviewed=reviewed_on,
     )
     with CardStore(open_db(db_path)) as store:
-        store.save_review(card_id, state, grade)
+        with store._conn:
+            store._conn.execute(
+                "UPDATE cards SET due_date = ? WHERE id = ?", (reviewed_on.isoformat(), card_id)
+            )
+        assert store.save_review(card_id, state, grade)  # a card can only be reviewed once due
 
 
 def stats_of(db_path, deck_id=None, today=WEB_TODAY):
@@ -110,12 +114,25 @@ def test_test_config_overrides_the_environment(monkeypatch, tmp_path):
     assert app.config["TODAY"] == date(2030, 1, 1)
 
 
+def test_unusable_database_gives_a_friendly_500_page(client, db_path):
+    db_path.write_bytes(b"this is not a sqlite database " * 20)
+
+    response = client.get("/")
+
+    body = text(response)
+    assert response.status_code == 500
+    assert "The database could not be opened - check FLASHCARDS_DB / --db" in body
+    assert "site-header" in body  # extends the base layout
+    assert "Traceback" not in body and "sqlite3" not in body
+    assert str(db_path) not in body
+
+
 def test_pages_have_a_stylesheet_that_is_served(client):
     body = text(client.get("/"))
     assert 'href="/static/style.css"' in body
-    css = client.get("/static/style.css")
-    assert css.status_code == 200
-    assert css.mimetype == "text/css"
+    with client.get("/static/style.css") as css:  # closes the file behind the response
+        assert css.status_code == 200
+        assert css.mimetype == "text/css"
 
 
 # --- stats ---

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from flashcards.errors import GenerationError, IngestError
+from flashcards.errors import ApiKeyError, GenerationError, IngestError
 from flashcards.ingest import load_chunks
 from flashcards.models import CardDraft
 from flashcards.pipeline import generate_deck
@@ -114,6 +114,16 @@ def test_after_editing_one_section_only_that_chunk_is_sent(store, tmp_path):
     assert len(questions(store, "biology")) == 4
 
 
+def test_key_error_is_raised_as_is_without_chunk_context(store, tmp_path):
+    path = write_notes(tmp_path, section(1), section(2))
+
+    with pytest.raises(ApiKeyError) as excinfo:
+        run(store, path, FakeSource(ApiKeyError("key missing")))
+
+    assert str(excinfo.value) == "key missing"
+    assert questions(store, "biology") == []
+
+
 def test_error_keeps_earlier_chunks_and_next_run_resumes_there(store, tmp_path):
     path = write_notes(tmp_path, section(1), section(2), section(3))
     failing = FakeSource(
@@ -189,7 +199,7 @@ def test_progress_lines_are_reported_per_chunk(store, tmp_path):
     with pytest.raises(GenerationError):
         run(store, path, first, on_progress=lines.append)
     assert lines == [
-        "chunk 1/3: 1 new cards",
+        "chunk 1/3: 1 new card",
         "chunk 2/3: no cards returned, will be retried next run",
     ]
 
@@ -197,8 +207,8 @@ def test_progress_lines_are_reported_per_chunk(store, tmp_path):
     run(store, path, FakeSource(), on_progress=lines.append)
     assert lines == [
         "chunk 1/3: skipped (already done)",
-        "chunk 2/3: 1 new cards",
-        "chunk 3/3: 1 new cards",
+        "chunk 2/3: 1 new card",
+        "chunk 3/3: 1 new card",
     ]
 
 
