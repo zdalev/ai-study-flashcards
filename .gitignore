@@ -7,3 +7,6 @@ __pycache__/
 .ruff_cache/
 .claude/settings.local.json
 *.db
+*.egg-info/
+build/
+dist/
