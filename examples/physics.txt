@@ -1,0 +1,23 @@
+Physics: Motion and Energy
+
+MOTION
+
+Speed is the distance travelled divided by the time taken. Velocity is speed in a given direction,
+so it is a vector, while speed is a scalar. Acceleration is the rate of change of velocity and is
+measured in metres per second squared (m/s^2). Near the surface of the Earth, the acceleration due
+to gravity is about 9.8 m/s^2.
+
+NEWTON'S LAWS
+
+Newton's first law says that an object stays at rest, or moves at constant velocity, unless a
+resultant force acts on it. Newton's second law says that force equals mass times acceleration
+(F = ma). Newton's third law says that when one object exerts a force on a second object, the second
+object exerts an equal and opposite force on the first. The unit of force is the newton (N).
+
+ENERGY
+
+Energy cannot be created or destroyed, only transferred from one form to another; this is the law
+of conservation of energy. Kinetic energy is the energy of a moving object and equals one half times
+mass times velocity squared. Gravitational potential energy equals mass times g times height.
+Energy is measured in joules (J), and power, the rate of transferring energy, is measured in watts
+(W).
