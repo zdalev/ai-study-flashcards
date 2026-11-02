@@ -317,6 +317,31 @@ class TestSaveReview:
         store.save_review(card_id, state, 4)
         assert store.get_card(card_id).state == state
 
+    def test_returns_true_when_the_review_was_saved(self, store, deck):
+        add(store, deck, "Q1")
+        card = store.due_cards(TODAY)[0]
+        assert store.save_review(card.id, review(card.state, 5, TODAY), 5) is True
+
+    def test_second_save_from_the_same_due_state_is_not_applied(self, store, deck):
+        add(store, deck, "Q1")
+        card = store.due_cards(TODAY)[0]
+        first = review(card.state, 5, TODAY)
+        assert store.save_review(card.id, first, 5) is True
+
+        # a parallel request that read the same due state arrives second
+        assert store.save_review(card.id, review(card.state, 0, TODAY), 0) is False
+
+        assert store.get_card(card.id).state == first
+        rows = store._conn.execute("SELECT grade FROM reviews").fetchall()
+        assert [tuple(r) for r in rows] == [(5,)]
+
+    def test_card_that_is_not_due_yet_is_not_reviewed(self, store, deck):
+        add(store, deck, "Q1", today=TODAY + timedelta(days=3))
+        card = store.get_card(1)
+        assert store.save_review(card.id, review(card.state, 5, TODAY), 5) is False
+        assert store.get_card(card.id) == card
+        assert store._conn.execute("SELECT count(*) FROM reviews").fetchone()[0] == 0
+
     def test_appends_exactly_one_review_row_per_call(self, store, deck):
         add(store, deck, "Q1")
         card_id = store.due_cards(TODAY)[0].id
