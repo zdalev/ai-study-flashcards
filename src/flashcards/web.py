@@ -4,7 +4,7 @@ This module must never import `anthropic` (directly or indirectly): the app need
 """
 
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from flask import Flask, abort, current_app, g, redirect, render_template, request, url_for
@@ -13,11 +13,14 @@ from werkzeug.wrappers import Response
 from flashcards import scheduler
 from flashcards.config import load_settings
 from flashcards.errors import StorageError
-from flashcards.models import Deck, Stats
+from flashcards.models import CardDraft, Deck, Stats
 from flashcards.storage import CardStore, open_db
 
 MAX_ID = 2**63 - 1  # sqlite3 binds 64-bit ints only; a bigger id would raise OverflowError
 MAX_GRADE = 5
+MAX_DECK_NAME_LEN = 100
+MAX_QUESTION_LEN = 500
+MAX_ANSWER_LEN = 2000
 GRADE_LABELS = (
     (0, "Blackout"),
     (1, "Wrong"),
@@ -43,9 +46,16 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
     app.register_error_handler(StorageError, storage_failed)
     app.add_url_rule("/", "home", home)
     app.add_url_rule("/stats", "all_stats", all_stats)
+    app.add_url_rule("/decks/new", "deck_new", deck_new, methods=["GET", "POST"])
     app.add_url_rule(f"/decks/<int(max={MAX_ID}):deck_id>/stats", "deck_stats", deck_stats)
     app.add_url_rule(
         f"/decks/<int(max={MAX_ID}):deck_id>/quiz", "quiz", quiz, methods=["GET", "POST"]
+    )
+    app.add_url_rule(
+        f"/decks/<int(max={MAX_ID}):deck_id>/cards/new",
+        "card_new",
+        card_new,
+        methods=["GET", "POST"],
     )
     return app
 
@@ -178,6 +188,82 @@ def submit_grade(store: CardStore, deck_id: int) -> Response:
         # False: a parallel request reviewed the card first, so this one is dropped as well.
         store.save_review(card_id, new_state, grade)
     return redirect(url_for("quiz", deck_id=deck_id, prev=card_id), code=303)
+
+
+def deck_new() -> str | Response:
+    if request.method == "POST":
+        return create_deck()
+    return render_deck_form(name="", error=None)
+
+
+def render_deck_form(name: str, error: str | None, status: int = 200) -> tuple[str, int]:
+    html = render_template("deck_new.html", name=name, error=error, max_length=MAX_DECK_NAME_LEN)
+    return html, status
+
+
+def create_deck() -> str | tuple[str, int] | Response:
+    """Create the subject (or reuse the one with the same name) and go to its add-card form."""
+    name = request.form.get("name", "")
+    if not name.strip():
+        return render_deck_form(name, "Please enter a subject name.", 400)
+    if len(name.strip()) > MAX_DECK_NAME_LEN:
+        return render_deck_form(
+            name, f"The subject name is too long (at most {MAX_DECK_NAME_LEN} characters).", 400
+        )
+    deck = get_store().get_or_create_deck(name, None, datetime.now())
+    return redirect(url_for("card_new", deck_id=deck.id), code=303)
+
+
+def card_new(deck_id: int) -> str | tuple[str, int] | Response:
+    store = get_store()
+    deck = store.get_deck(deck_id)
+    if deck is None:
+        abort(404)
+    if request.method == "POST":
+        return create_card(store, deck)
+    return render_card_form(deck, question="", answer="", error=None)
+
+
+def render_card_form(
+    deck: Deck, question: str, answer: str, error: str | None, status: int = 200
+) -> tuple[str, int]:
+    html = render_template(
+        "card_new.html",
+        deck=deck,
+        question=question,
+        answer=answer,
+        error=error,
+        added=request.method == "GET" and request.args.get("added") == "1",
+        max_question=MAX_QUESTION_LEN,
+        max_answer=MAX_ANSWER_LEN,
+    )
+    return html, status
+
+
+def card_form_error(question: str, answer: str) -> str | None:
+    """The message for unusable input, or None when the card can be saved."""
+    if not question.strip():
+        return "Please enter a question."
+    if not answer.strip():
+        return "Please enter an answer."
+    if len(question.strip()) > MAX_QUESTION_LEN:
+        return f"The question is too long (at most {MAX_QUESTION_LEN} characters)."
+    if len(answer.strip()) > MAX_ANSWER_LEN:
+        return f"The answer is too long (at most {MAX_ANSWER_LEN} characters)."
+    return None
+
+
+def create_card(store: CardStore, deck: Deck) -> tuple[str, int] | Response:
+    """Save one card (due today), then redirect (POST/redirect/GET) to a fresh form."""
+    question = request.form.get("question", "")
+    answer = request.form.get("answer", "")
+    error = card_form_error(question, answer)
+    if error:
+        return render_card_form(deck, question, answer, error, 400)
+    if store.add_cards(deck.id, [CardDraft(question, answer)], today(), datetime.now()) == 0:
+        error = f"This question already exists in {deck.name}."
+        return render_card_form(deck, question, answer, error, 409)
+    return redirect(url_for("card_new", deck_id=deck.id, added=1), code=303)
 
 
 def bad_request(_error: Exception) -> tuple[str, int]:

@@ -16,17 +16,20 @@
     </div>
     <div class="deck-actions">
       <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id) }}">Study</a>
+      <a class="button secondary" href="{{ url_for('card_new', deck_id=summary.deck.id) }}">Add card</a>
       <a class="button secondary" href="{{ url_for('deck_stats', deck_id=summary.deck.id) }}">Stats</a>
     </div>
   </li>
   {% endfor %}
 </ul>
-<p><a href="{{ url_for('all_stats') }}">All subjects stats</a></p>
+<p><a class="button" href="{{ url_for('deck_new') }}">New subject</a>
+  <a href="{{ url_for('all_stats') }}">All subjects stats</a></p>
 {% else %}
 <div class="empty">
   <p>There are no subjects yet.</p>
   <p>Run <code>flashcards load-demo</code> to load the demo decks, or
      <code>flashcards generate NOTES</code> to make cards from your own notes.</p>
+  <p><a class="button" href="{{ url_for('deck_new') }}">New subject</a> to add cards by hand.</p>
 </div>
 {% endif %}
 {% endblock %}

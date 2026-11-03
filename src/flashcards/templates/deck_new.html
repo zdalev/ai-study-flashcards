@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}New subject{% endblock %}
+{% block content %}
+<h1>New subject</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form class="form" method="post" action="{{ url_for('deck_new') }}">
+  <label for="name">Subject name</label>
+  <input type="text" id="name" name="name" value="{{ name }}" maxlength="{{ max_length }}" required autofocus>
+  <p class="muted">If a subject with this name exists, you can add cards to it.</p>
+  <button type="submit" class="button">Create subject</button>
+</form>
+<p><a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}
