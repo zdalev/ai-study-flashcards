@@ -280,6 +280,22 @@ class CardStore:
             ).fetchone()
         return None if row is None else _to_deck(row)
 
+    def delete_deck(self, deck_id: int) -> bool:
+        """Delete the deck with its cards, chunk digests and reviews, in one transaction.
+
+        The children are deleted explicitly (the schema also cascades, but only while foreign
+        keys are on). Returns False, and changes nothing, for an unknown deck.
+        """
+        with _db_errors("deleting a deck"), self._conn:
+            self._conn.execute(
+                "DELETE FROM reviews WHERE card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
+                (deck_id,),
+            )
+            self._conn.execute("DELETE FROM cards WHERE deck_id = ?", (deck_id,))
+            self._conn.execute("DELETE FROM chunks WHERE deck_id = ?", (deck_id,))
+            cursor = self._conn.execute("DELETE FROM decks WHERE id = ?", (deck_id,))
+        return cursor.rowcount == 1
+
     def deck_summaries(self, today: date) -> list[DeckSummary]:
         """All decks ordered by name, with their card count and how many are due."""
         with _db_errors("listing decks"):

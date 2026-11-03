@@ -3,6 +3,9 @@
 {% block width %} wide{% endblock %}
 {% block content %}
 <h1>Subjects</h1>
+{% if deleted %}
+<p class="notice" role="status">Subject "{{ deleted }}" deleted.</p>
+{% endif %}
 {% if summaries %}
 <ul class="decks">
   {% for summary in summaries %}

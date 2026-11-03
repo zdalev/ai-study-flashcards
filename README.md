@@ -36,14 +36,21 @@ Open <http://127.0.0.1:5000>, choose a subject and click **Study: Write** or **S
 No notes file or API key is needed to write cards yourself. On the home page click **New subject**
 and type a name (or click **Add card** next to an existing subject), then fill in the question and
 the answer and click **Add card**. The new card is due today, so it shows up in the quiz straight
-away, and the form stays open so you can add another.
+away, and the form stays open so you can add another. Click **Done** when you are finished to go back
+to the home page.
 
 - A question and an answer are both required (at most 500 and 2000 characters). A subject name is at
   most 100 characters.
 - A question that is already in the subject (ignoring case and extra spaces) is not added twice; the
   page says so and keeps what you typed.
 - A subject name that already exists takes you to that subject's form instead of making a second one.
-- There is no way to edit or delete a card in the app.
+- There is no way to edit or delete a single card in the app. To remove a whole subject, see below.
+
+## Delete a subject
+
+Open a subject's **Stats** page and click **Delete subject**. A confirmation page shows how many
+cards will go; confirming removes the subject with all its cards and their history (reviews and
+the record of imported note chunks). This cannot be undone. The home page then shows a short notice.
 
 ## Generate your own deck (needs a Claude API key)
 
@@ -76,11 +83,12 @@ It overwrites the file; skim the cards before committing it.
 |---|---|---|
 | Home | `/` | All subjects with their card count and how many cards are due today, each with **Study: Write**, **Study: Multiple choice**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
 | New subject | `/decks/new` | A form with a subject name. Creates the subject (or reuses one with the same name) and opens its Add card form. |
-| Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. Linked from the home, stats and done pages. |
+| Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. A **Done** button next to **Add card** goes back to the home page. Linked from the home, stats and done pages. |
 | Quiz | `/decks/<id>/quiz?mode=write` | The next due card (most overdue first) and the number of cards due. **Write mode:** type your answer (it may be empty) and click **Save answer**; the page then shows your answer next to the correct one and you grade yourself with **Do not know**, **Wrong**, **Partially correct** or **Correct**. |
 | Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards of the same subject, in an order that stays the same when you refresh) and a **Do not know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **Do not know**, with a **Next card** link. A subject with fewer than four different answers uses write mode instead, with a short note. |
 | Done | (same URL) | Shown when nothing is due in the subject: cards reviewed today, accuracy today and the next due date. |
 | Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date, and a **Recent answers** table with the last 20 answers (date, mode, question, your answer, correct answer, result; older answers saved before this table existed show `-`). |
+| Delete subject | `/decks/<id>/delete` | A confirmation page ("Delete <name>? This removes N cards and their history."). **Delete subject** (POST) removes the subject, its cards, chunk records and reviews and returns to the home page with a notice; **Cancel** goes back to the stats page. A GET never deletes. Linked from the subject's stats page only. |
 | All stats | `/stats` | The same figures for all subjects together. |
 
 The write-mode buttons are saved as SM-2 grades: **Do not know** = 0, **Wrong** = 1, **Partially
@@ -150,7 +158,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 641 tests, about 2 seconds
+pytest            # 676 tests, about 2 seconds
 ruff check .
 ```
 

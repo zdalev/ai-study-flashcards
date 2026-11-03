@@ -7,6 +7,7 @@
   --accent: #2459c7;
   --accent-text: #ffffff;
   --due: #b45309;
+  --danger: #b42318;
 }
 
 * { box-sizing: border-box; }
@@ -64,6 +65,11 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
   background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);
 }
 .button.secondary { background: var(--surface); color: var(--accent); }
+.button.danger { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.button.danger:hover { background: #fdecea; }
+.button.danger-solid { background: var(--danger); color: #fff; border-color: var(--danger); }
+.button.danger-solid:hover { background: #8f1c12; }
+button.button { font: inherit; cursor: pointer; }
 
 .stats {
   width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--surface);
@@ -148,7 +154,7 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .study-card h2 { font-size: 1rem; color: var(--muted); font-weight: 600; margin: 1.5rem 0 0.6rem; }
 .answer-form textarea { min-height: 6rem; }
 .answer-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.form-actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
+.form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 .form-actions .button, .answer-form .form-actions button { margin-top: 0; padding: 0.55rem 1.4rem; font-size: 1rem; }
 
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem; }
@@ -237,3 +243,6 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
   .stats.tiles .tile-main td { font-size: 1.35rem; }
   .stats.tiles td { font-size: 1.15rem; }
 }
+.confirm-card { border-color: #f0c4bf; padding: 1.5rem 1.75rem; border-radius: 12px; }
+.confirm-card h1 { margin-bottom: 0.5rem; }
+.confirm-card .page-actions { justify-content: flex-end; margin-top: 1.25rem; }
