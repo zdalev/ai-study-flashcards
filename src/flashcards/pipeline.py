@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from flashcards.errors import ApiKeyError, DemoDataError, GenerationError
+from flashcards.errors import ApiKeyError, DemoDataError, GenerationError, StorageError
 from flashcards.ingest import load_chunks
 from flashcards.models import CardDraft
-from flashcards.storage import CardStore
+from flashcards.storage import CardStore, normalize_text
 
 DEMO_VERSION = 1
 
@@ -45,18 +45,22 @@ def generate_deck(
     Chunks already stored for the deck are skipped, so a second run makes no calls. Each new
     chunk is saved on its own. The first GenerationError stops the run and is raised again with
     the chunk position (an ApiKeyError is raised as is); chunks saved before it stay saved, and
-    the same command continues there.
+    the same command continues there. The deck is created only when its first cards are saved,
+    so a run that fails before that (no API key, API error) leaves no empty deck behind.
     """
     notes_path = Path(notes_path)
     chunks = load_chunks(notes_path)
-    deck = store.get_or_create_deck(deck_name or notes_path.stem, str(notes_path), now)
+    name = normalize_text(deck_name or notes_path.stem)
+    if not name:
+        raise StorageError("deck name must not be empty")
+    deck = store.find_deck(name)
     notify = on_progress or (lambda _message: None)
 
     skipped = generated = empty = added = 0
     total = len(chunks)
     for number, chunk in enumerate(chunks, start=1):
         label = f"chunk {number}/{total}"
-        if store.has_chunk(deck.id, chunk.digest):
+        if deck is not None and store.has_chunk(deck.id, chunk.digest):
             skipped += 1
             notify(f"{label}: skipped (already done)")
             continue
@@ -75,11 +79,13 @@ def generate_deck(
             empty += 1
             notify(f"{label}: no cards returned, will be retried next run")
             continue
+        if deck is None:
+            deck = store.get_or_create_deck(name, str(notes_path), now)
         new_cards = store.add_cards(deck.id, drafts, today, now, chunk_digest=chunk.digest)
         generated += 1
         added += new_cards
         notify(f"{label}: {count_noun(new_cards, 'new card')}")
-    return GenerateReport(deck.name, total, skipped, generated, empty, added)
+    return GenerateReport(name, total, skipped, generated, empty, added)
 
 
 def count_noun(number: int, noun: str) -> str:

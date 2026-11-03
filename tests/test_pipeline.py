@@ -121,7 +121,25 @@ def test_key_error_is_raised_as_is_without_chunk_context(store, tmp_path):
         run(store, path, FakeSource(ApiKeyError("key missing")))
 
     assert str(excinfo.value) == "key missing"
-    assert questions(store, "biology") == []
+    assert store.find_deck("biology") is None  # no empty deck is left behind
+
+
+def test_failure_on_the_first_chunk_creates_no_deck(store, tmp_path):
+    path = write_notes(tmp_path, section(1))
+
+    with pytest.raises(GenerationError):
+        run(store, path, FakeSource(GenerationError("boom")))
+
+    assert store.find_deck("biology") is None
+
+
+def test_chunks_without_cards_create_no_deck(store, tmp_path):
+    path = write_notes(tmp_path, section(1))
+
+    report = run(store, path, FakeSource([]))
+
+    assert (report.deck_name, report.chunks_empty) == ("biology", 1)
+    assert store.find_deck("biology") is None
 
 
 def test_error_keeps_earlier_chunks_and_next_run_resumes_there(store, tmp_path):

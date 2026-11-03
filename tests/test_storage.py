@@ -510,6 +510,39 @@ class TestDeckSummaries:
         assert [(s.cards, s.due) for s in summaries] == [(0, 0), (3, 2), (1, 1)]
 
 
+class TestCardsWithDeckNames:
+    def test_empty(self, store):
+        assert store.cards_with_deck_names() == []
+
+    def test_ordered_by_deck_name_then_card_id(self, store):
+        zoology = store.get_or_create_deck("zoology", None, NOW)
+        biology = store.get_or_create_deck("Biology", None, NOW)
+        add(store, zoology, "Z1")
+        add(store, biology, "B2", "B1")
+        add(store, zoology, "Z2")
+
+        rows = store.cards_with_deck_names()
+        assert [(name, card.question) for name, card in rows] == [
+            ("Biology", "B2"),
+            ("Biology", "B1"),
+            ("zoology", "Z1"),
+            ("zoology", "Z2"),
+        ]
+
+    def test_deck_filter_and_full_card_state(self, store, deck):
+        other = store.get_or_create_deck("Chemistry", None, NOW)
+        add(store, deck, "B1")
+        add(store, other, "C1")
+
+        rows = store.cards_with_deck_names(deck.id)
+        assert [(name, card.question) for name, card in rows] == [("Biology", "B1")]
+        assert rows[0][1] == store.due_cards(TODAY, deck_id=deck.id)[0]
+
+    def test_unknown_deck_gives_nothing(self, store, deck):
+        add(store, deck, "B1")
+        assert store.cards_with_deck_names(deck.id + 99) == []
+
+
 class TestStoreLifecycle:
     def test_context_manager_closes_the_connection(self, db_path):
         with CardStore(open_db(db_path)) as card_store:

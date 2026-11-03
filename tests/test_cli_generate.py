@@ -159,6 +159,51 @@ def test_missing_key_from_the_client_factory_gives_exit_1(notes, tmp_path, capsy
     err = capsys.readouterr().err
     assert generator.KEY_MESSAGE in err
     assert "Traceback" not in err
+    assert read_db(tmp_path / "c.db", "SELECT count(*) FROM decks") == [(0,)]  # no empty deck
+
+
+def test_generate_without_a_key_leaves_no_empty_deck(notes, tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    # The real client factory runs; the SDK client it builds has no credentials.
+    monkeypatch.setattr(anthropic, "Anthropic", lambda api_key=None: FakeClient(api_key=api_key))
+    db = tmp_path / "c.db"
+
+    assert main(["--db", str(db), "generate", str(notes)]) == 1
+
+    assert read_db(db, "SELECT count(*) FROM decks") == [(0,)]
+
+
+def test_flashcards_today_is_used_for_the_due_date(notes, tmp_path, monkeypatch):
+    monkeypatch.setenv("FLASHCARDS_TODAY", "2027-03-04")
+    db = tmp_path / "c.db"
+
+    main(["--db", str(db), "generate", str(notes)], deps_with(FakeClient(cards_response(CARDS))))
+
+    assert read_db(db, "SELECT due_date FROM cards") == [("2027-03-04",)]
+
+
+def test_today_option_beats_flashcards_today(notes, tmp_path, monkeypatch):
+    monkeypatch.setenv("FLASHCARDS_TODAY", "2027-03-04")
+    db = tmp_path / "c.db"
+
+    main(
+        ["--db", str(db), "--today", "2028-01-02", "generate", str(notes)],
+        deps_with(FakeClient(cards_response(CARDS))),
+    )
+
+    assert read_db(db, "SELECT due_date FROM cards") == [("2028-01-02",)]
+
+
+def test_global_options_work_after_the_subcommand(notes, tmp_path):
+    db = tmp_path / "c.db"
+
+    code = main(
+        ["generate", str(notes), "--db", str(db), "--today", "2028-01-02"],
+        deps_with(FakeClient(cards_response(CARDS))),
+    )
+
+    assert code == 0
+    assert read_db(db, "SELECT due_date FROM cards") == [("2028-01-02",)]
 
 
 def test_missing_file_gives_exit_1_without_traceback(tmp_path, capsys):
