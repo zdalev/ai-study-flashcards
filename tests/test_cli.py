@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,30 @@ def test_invalid_today_is_a_usage_error(capsys):
 def test_today_is_parsed_as_a_date():
     args = build_parser().parse_args(["--today", "2026-11-02"])
     assert args.today.isoformat() == "2026-11-02"
+
+
+def test_global_options_are_accepted_before_and_after_the_subcommand():
+    parser = build_parser()
+    before = parser.parse_args(["--db", "a.db", "--today", "2026-11-02", "export", "out.csv"])
+    after = parser.parse_args(["export", "out.csv", "--db", "a.db", "--today", "2026-11-02"])
+    assert (before.db, before.today) == (after.db, after.today) == (Path("a.db"), date(2026, 11, 2))
+
+
+def test_subcommand_does_not_overwrite_a_global_option_given_before_it():
+    args = build_parser().parse_args(["--db", "a.db", "--today", "2026-11-02", "serve"])
+    assert args.db == Path("a.db")
+    assert args.today == date(2026, 11, 2)
+
+
+def test_global_options_default_to_none():
+    args = build_parser().parse_args(["serve"])
+    assert args.db is None
+    assert args.today is None
+
+
+def test_invalid_today_after_the_subcommand_is_a_usage_error(capsys):
+    assert main(["serve", "--today", "2026-13-01"]) == 2
+    assert "--today" in capsys.readouterr().err
 
 
 def test_unknown_command_is_a_usage_error():

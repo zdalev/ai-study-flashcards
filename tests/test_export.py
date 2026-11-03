@@ -333,3 +333,12 @@ def test_cli_dash_in_a_real_process_writes_utf8_to_stdout(store, db_path, tmp_pa
     assert result.returncode == 0, result.stderr
     assert result.stderr == b""
     assert read_back(result.stdout.decode("utf-8"))[0]["question"] == "¿Qué?"
+
+
+def test_cli_accepts_db_after_the_subcommand(store, db_path, tmp_path, capsys):
+    add(store, "Biology", ("B1", "a"))
+
+    code = main(["export", "-", "--db", str(db_path)], cli_deps())
+
+    assert code == 0
+    assert [r["question"] for r in read_back(capsys.readouterr().out)] == ["B1"]
