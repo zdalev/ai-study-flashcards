@@ -667,3 +667,13 @@ def test_result_styles_give_partially_correct_its_own_class():
     assert result_class(2) == "result-partial"
     assert {result_class(grade) for grade in (0, 1)} == {"result-miss"}
     assert {result_class(grade) for grade in (3, 4, 5)} == {"result-correct"}
+
+
+def test_history_sits_in_a_scroll_box_and_long_cells_keep_their_full_text(client, db_path):
+    deck_id = deck_of_five(db_path)
+    long_answer = "a long typed answer " * 10
+    log_review(db_path, 1, 4, mode="write", given=long_answer.strip())
+    body = text(client.get(f"/decks/{deck_id}/stats"))
+    assert '<div class="table-wrap history-scroll">' in body
+    assert f'<div class="clamp" title="{long_answer.strip()}">' in body
+    assert history_cells(body)[0][3] == long_answer.strip()
