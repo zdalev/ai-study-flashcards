@@ -15,7 +15,8 @@
       </p>
     </div>
     <div class="deck-actions">
-      <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id) }}">Study</a>
+      <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id, mode='write') }}">Study: Write</a>
+      <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id, mode='choice') }}">Study: Multiple choice</a>
       <a class="button secondary" href="{{ url_for('card_new', deck_id=summary.deck.id) }}">Add card</a>
       <a class="button secondary" href="{{ url_for('deck_stats', deck_id=summary.deck.id) }}">Stats</a>
     </div>

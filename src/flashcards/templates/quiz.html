@@ -3,24 +3,21 @@
 {% block content %}
 <h1>Study: {{ deck.name }}</h1>
 <p class="muted">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</p>
-{% include "previous.html" %}
+{% if fallback %}
+<p class="notice">Multiple choice needs at least {{ choice_min_answers }} different answers in this subject,
+  so this card uses write mode.</p>
+{% endif %}
 <section class="card">
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>
-  <details>
-    <summary>Show answer</summary>
-    <p class="label">Answer</p>
-    <p class="answer">{{ card.answer }}</p>
-    <form method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
-      <input type="hidden" name="card_id" value="{{ card.id }}">
-      <p class="label">How well did you remember it?</p>
-      <div class="grades">
-        {% for value, label in grades %}
-        <button type="submit" name="grade" value="{{ value }}">{{ value }} - {{ label }}</button>
-        {% endfor %}
-      </div>
-    </form>
-  </details>
+  <form class="answer-form" method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
+    <input type="hidden" name="card_id" value="{{ card.id }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="step" value="answer">
+    <label for="given_answer">Your answer</label>
+    <textarea id="given_answer" name="given_answer" rows="5" maxlength="{{ max_answer }}" autofocus></textarea>
+    <button type="submit" class="button">Save answer</button>
+  </form>
 </section>
 <p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>

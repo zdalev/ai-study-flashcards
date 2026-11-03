@@ -6,8 +6,9 @@ repetition.
 - `flashcards generate` reads a `.txt` / `.md` notes file, sends it to the Claude API in chunks
   and stores the question/answer cards it gets back (as structured JSON) in a local SQLite
   database. One notes file becomes one deck (subject).
-- `flashcards serve` starts a small Flask web app: pick a subject, answer the cards that are due,
-  grade yourself 0-5, and the SM-2 scheduler decides when each card comes back. You can also add
+- `flashcards serve` starts a small Flask web app: pick a subject and study the cards that are due,
+  either by typing the answer or by choosing from four options. The SM-2 scheduler decides when
+  each card comes back, and the subject's stats page lists your recent answers. You can also add
   your own subjects and cards by hand in the browser.
 - Five sample subjects are included: **biology, english, mathematics, physics, programming**
   (`examples/`), plus a ready-made demo deck so you can try the app **without an API key**.
@@ -26,7 +27,7 @@ flashcards load-demo               # loads examples/demo-cards.json into flashca
 flashcards serve
 ```
 
-Open <http://127.0.0.1:5000>, choose a subject and click **Study**. Stop the server with Ctrl+C.
+Open <http://127.0.0.1:5000>, choose a subject and click **Study: Write** or **Study: Multiple choice**. Stop the server with Ctrl+C.
 
 `load-demo` can be run again safely: cards that already exist are not added twice.
 
@@ -73,15 +74,19 @@ It overwrites the file; skim the cards before committing it.
 
 | Page | URL | What it shows |
 |---|---|---|
-| Home | `/` | All subjects with their card count and how many cards are due today, each with **Study**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
+| Home | `/` | All subjects with their card count and how many cards are due today, each with **Study: Write**, **Study: Multiple choice**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
 | New subject | `/decks/new` | A form with a subject name. Creates the subject (or reuses one with the same name) and opens its Add card form. |
 | Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. Linked from the home, stats and done pages. |
-| Quiz | `/decks/<id>/quiz` | The next due card (most overdue first) and the number of cards due. **Show answer** reveals the answer and the grade buttons **0 Blackout, 1 Wrong, 2 Wrong but familiar, 3 Hard, 4 Good, 5 Perfect**. After grading, the next card appears with a note when the previous one is due again. |
+| Quiz | `/decks/<id>/quiz?mode=write` | The next due card (most overdue first) and the number of cards due. **Write mode:** type your answer (it may be empty) and click **Save answer**; the page then shows your answer next to the correct one and you grade yourself with **No idea**, **Wrong** or **Correct**. |
+| Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards of the same subject, in an order that stays the same when you refresh) and an **I don't know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **No idea**, with a **Next card** link. A subject with fewer than four different answers uses write mode instead, with a short note. |
 | Done | (same URL) | Shown when nothing is due in the subject: cards reviewed today, accuracy today and the next due date. |
-| Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date. |
+| Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date, and a **Recent answers** table with the last 20 answers (date, mode, question, your answer, correct answer, result; older answers saved before this table existed show `-`). |
 | All stats | `/stats` | The same figures for all subjects together. |
 
-A grade of 3 or more counts as a correct answer for accuracy.
+The three buttons are saved as SM-2 grades: **No idea** = 0, **Wrong** = 1 and **Correct** = 4 (a
+correct answer keeps the ease factor, so the intervals go 1, 6, 15, 38 ... days). Multiple choice
+gives the same grades automatically: the right option is **Correct**, any other option **Wrong**,
+**I don't know** **No idea**. A grade of 3 or more counts as a correct answer for accuracy.
 
 ## Commands
 
@@ -141,7 +146,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 529 tests, about 2 seconds
+pytest            # 636 tests, about 2 seconds
 ruff check .
 ```
 

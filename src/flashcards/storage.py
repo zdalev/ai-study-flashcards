@@ -20,17 +20,19 @@ from flashcards.models import (
     CardDraft,
     Deck,
     DeckSummary,
+    ReviewEntry,
     ReviewState,
     Stats,
 )
 from flashcards.scheduler import PASS_GRADE
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# BEGIN IMMEDIATE takes the write lock first, so parallel first opens of a new file queue up
-# (up to the connection's busy timeout); the IF NOT EXISTS clauses make the ones that were
-# already past the `user_version == 0` check harmless once the winner has committed.
-_SCHEMA_V1 = """
+# The schema of a new file (version 2). BEGIN IMMEDIATE takes the write lock first, so parallel
+# first opens of a new file queue up (up to the connection's busy timeout); the IF NOT EXISTS
+# clauses make the ones that were already past the `user_version == 0` check harmless once the
+# winner has committed. Databases created by version 1 are upgraded by `_migrate_v1_to_v2`.
+_SCHEMA_V2 = """
 BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS decks (
     id          INTEGER PRIMARY KEY,
@@ -61,12 +63,21 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE TABLE IF NOT EXISTS reviews (
     card_id     INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     reviewed_on TEXT    NOT NULL,
-    grade       INTEGER NOT NULL CHECK (grade BETWEEN 0 AND 5)
+    grade       INTEGER NOT NULL CHECK (grade BETWEEN 0 AND 5),
+    mode        TEXT CHECK (mode IN ('write', 'choice')),
+    given_answer TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reviews_day ON reviews (reviewed_on);
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 COMMIT;
 """
+
+# Version 2 added the answer mode and the typed or chosen answer to every review. Old rows keep
+# NULL in both columns.
+_V2_NEW_COLUMNS = (
+    "ALTER TABLE reviews ADD COLUMN mode TEXT CHECK (mode IN ('write', 'choice'))",
+    "ALTER TABLE reviews ADD COLUMN given_answer TEXT",
+)
 
 _CARD_COLUMNS = (
     "id, deck_id, question, answer, ease_factor, interval_days, repetitions, due_date,"
@@ -87,7 +98,8 @@ def open_db(path: Path | str) -> sqlite3.Connection:
     """Open (and create if needed) the database at `path` and return a ready connection.
 
     The parent folder is created, rows come back as `sqlite3.Row`, foreign keys are on, and
-    the v1 schema is applied when the file is new. Opening an existing database is a no-op.
+    the current schema is applied when the file is new, and a version 1 file is upgraded.
+    Opening an up-to-date database is a no-op.
     Raises StorageError for an unusable path or file, or for a database from a newer version.
     """
     target = str(path)
@@ -120,11 +132,32 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
         )
     if version == 0:
         try:
-            conn.executescript(_SCHEMA_V1)
+            conn.executescript(_SCHEMA_V2)
         except sqlite3.Error:
             # executescript leaves its BEGIN open when a statement fails.
             conn.rollback()
             raise
+    elif version < SCHEMA_VERSION:
+        _migrate_v1_to_v2(conn)
+
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Add the review columns of version 2, once, even when several processes open the file.
+
+    The version is read again after the write lock is taken: a process that waited for the
+    lock finds the upgrade done and must not repeat it (ALTER TABLE ADD COLUMN fails with
+    "duplicate column name" on the second run).
+    """
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("PRAGMA user_version").fetchone()[0] == 1:
+            for statement in _V2_NEW_COLUMNS:
+                conn.execute(statement)
+            conn.execute("PRAGMA user_version = 2")
+        conn.commit()
+    except sqlite3.Error:
+        conn.rollback()
+        raise
 
 
 def normalize_text(text: str) -> str:
@@ -172,6 +205,20 @@ def _to_card(row: sqlite3.Row) -> Card:
         question=row["question"],
         answer=row["answer"],
         state=state,
+    )
+
+
+def _to_review_entry(row: sqlite3.Row) -> ReviewEntry:
+    reviewed_on = _parse_date(row["reviewed_on"])
+    assert reviewed_on is not None  # the column is NOT NULL
+    return ReviewEntry(
+        card_id=row["card_id"],
+        reviewed_on=reviewed_on,
+        mode=row["mode"],
+        question=row["question"],
+        given_answer=row["given_answer"],
+        correct_answer=row["answer"],
+        grade=row["grade"],
     )
 
 
@@ -347,14 +394,25 @@ class CardStore:
 
     # --- reviews ---
 
-    def save_review(self, card_id: int, state: ReviewState, grade: int) -> bool:
+    def save_review(
+        self,
+        card_id: int,
+        state: ReviewState,
+        grade: int,
+        *,
+        mode: str | None = None,
+        given_answer: str | None = None,
+    ) -> bool:
         """Store the card's new state and log the review, in one transaction.
+
+        `mode` ('write' or 'choice') and `given_answer` (the typed or chosen text, '' for an
+        empty answer) are logged with the review; None means "not recorded".
 
         The review is logged on `state.last_reviewed`, and it only applies while the card is
         still due on that day. Returns False (nothing saved) when it is not: a repeated or
         parallel submit of the same answer therefore logs one review, not several. Raises
-        StorageError for an unknown card, a state without `last_reviewed`, or a grade outside
-        0..5; nothing is saved then.
+        StorageError for an unknown card, a state without `last_reviewed`, a grade outside
+        0..5 or an unknown mode; nothing is saved then.
         """
         if state.last_reviewed is None:
             raise StorageError("a reviewed state needs last_reviewed")
@@ -382,10 +440,32 @@ class CardStore:
                     raise StorageError(f"no card with id {card_id}")
                 return False
             self._conn.execute(
-                "INSERT INTO reviews (card_id, reviewed_on, grade) VALUES (?, ?, ?)",
-                (card_id, reviewed_on, grade),
+                "INSERT INTO reviews (card_id, reviewed_on, grade, mode, given_answer)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (card_id, reviewed_on, grade, mode, given_answer),
             )
         return True
+
+    def recent_answers(self, deck_id: int, limit: int = 20) -> list[ReviewEntry]:
+        """The deck's latest reviews, newest first (same-day reviews: the last saved first).
+
+        Reviews from before version 2 are included, with `mode` and `given_answer` None.
+        """
+        if limit < 0:
+            raise ValueError(f"limit must not be negative, got {limit}")
+        with _db_errors("reading recent answers"):
+            rows = self._conn.execute(
+                """
+                SELECT r.reviewed_on, r.mode, r.given_answer, r.grade,
+                       c.id AS card_id, c.question, c.answer
+                FROM reviews r JOIN cards c ON c.id = r.card_id
+                WHERE c.deck_id = ?
+                ORDER BY r.reviewed_on DESC, r.rowid DESC
+                LIMIT ?
+                """,
+                (deck_id, limit),
+            ).fetchall()
+        return [_to_review_entry(row) for row in rows]
 
     # --- statistics ---
 

@@ -3,7 +3,7 @@
 Each test pins something that a plausible bug would have left unnoticed:
 - the done page counts only the deck's own reviews of today (not all time, not other decks);
 - the stats page shows mature and new cards in the right rows (the numbers differ here);
-- the plan's end-to-end case: load_demo, grade two biology cards 5 and 2, other decks unchanged;
+- the plan's end-to-end case: load_demo, grade two biology cards 4 and 1, other decks unchanged;
 - load_demo keeps the deck names as written, and `load-demo` accepts a UTF-8 BOM.
 """
 
@@ -108,7 +108,7 @@ def test_end_to_end_after_load_demo_two_biology_grades_give_50_percent(client, d
         others = [store.find_deck(name) for name in DEMO_NAMES if name != "biology"]
     first, second, _third = due_ids(db_path, biology.id)
 
-    for card_id, grade in ((first, 5), (second, 2)):
+    for card_id, grade in ((first, 4), (second, 1)):
         response = client.post(
             f"/decks/{biology.id}/quiz", data={"card_id": card_id, "grade": grade}
         )

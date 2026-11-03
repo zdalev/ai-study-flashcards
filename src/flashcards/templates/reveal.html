@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Study: {{ deck.name }}{% endblock %}
+{% block content %}
+<h1>Study: {{ deck.name }}</h1>
+<section class="card">
+  <p class="label">Question</p>
+  <p class="question">{{ card.question }}</p>
+  <p class="label">Your answer</p>
+  {% if given_answer %}
+  <p class="answer">{{ given_answer }}</p>
+  {% else %}
+  <p class="answer muted">(no answer)</p>
+  {% endif %}
+  <p class="label">Correct answer</p>
+  <p class="answer">{{ card.answer }}</p>
+  <form method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
+    <input type="hidden" name="card_id" value="{{ card.id }}">
+    <input type="hidden" name="given_answer" value="{{ given_answer }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <h2>How did you do?</h2>
+    <div class="grades">
+      {% for value, label in grades %}
+      <button type="submit" name="grade" value="{{ value }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </form>
+</section>
+<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+  <a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}

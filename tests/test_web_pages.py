@@ -56,10 +56,12 @@ def test_home_lists_decks_with_counts_and_links(client, seed):
     for name in ("Biology", "Physics", "Chemistry"):
         assert name in body
     assert "3 cards" in body
+    assert ">Study</a>" not in body  # replaced by the two mode buttons
     assert "3 due" in body  # Biology: all three are due today
     assert "0 due" in body  # Chemistry: not due for three days
     for deck_id in (biology, physics):
-        assert f'href="/decks/{deck_id}/quiz"' in body
+        assert f'href="/decks/{deck_id}/quiz?mode=write">Study: Write</a>' in body
+        assert f'href="/decks/{deck_id}/quiz?mode=choice">Study: Multiple choice</a>' in body
         assert f'href="/decks/{deck_id}/stats"' in body
     assert 'href="/stats"' in body
     assert body.index("Biology") < body.index("Chemistry") < body.index("Physics")  # by name

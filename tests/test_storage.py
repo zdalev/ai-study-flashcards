@@ -45,6 +45,64 @@ def review_card(store, card_id, grade, day):
     store.save_review(card_id, review(card.state, grade, day), grade)
 
 
+# The schema of version 1, frozen here: files from before the answer modes look like this.
+SCHEMA_V1 = """
+CREATE TABLE decks (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    source_path TEXT,
+    created_at  TEXT NOT NULL
+);
+CREATE TABLE cards (
+    id            INTEGER PRIMARY KEY,
+    deck_id       INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+    question      TEXT NOT NULL COLLATE NOCASE CHECK (length(trim(question)) > 0),
+    answer        TEXT NOT NULL CHECK (length(trim(answer)) > 0),
+    created_at    TEXT NOT NULL,
+    ease_factor   REAL    NOT NULL DEFAULT 2.5 CHECK (ease_factor >= 1.3),
+    interval_days INTEGER NOT NULL DEFAULT 0   CHECK (interval_days >= 0),
+    repetitions   INTEGER NOT NULL DEFAULT 0   CHECK (repetitions >= 0),
+    due_date      TEXT    NOT NULL,
+    last_reviewed TEXT,
+    UNIQUE (deck_id, question)
+);
+CREATE INDEX idx_cards_due ON cards (due_date);
+CREATE TABLE chunks (
+    deck_id    INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+    digest     TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (deck_id, digest)
+);
+CREATE TABLE reviews (
+    card_id     INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    reviewed_on TEXT    NOT NULL,
+    grade       INTEGER NOT NULL CHECK (grade BETWEEN 0 AND 5)
+);
+CREATE INDEX idx_reviews_day ON reviews (reviewed_on);
+INSERT INTO decks (id, name, created_at) VALUES (1, 'Biology', '2026-03-01T09:00:00');
+INSERT INTO cards (id, deck_id, question, answer, created_at, due_date, last_reviewed)
+    VALUES (1, 1, 'What is ATP?', 'Energy.', '2026-03-01T09:00:00', '2026-03-12', '2026-03-10');
+INSERT INTO reviews (card_id, reviewed_on, grade) VALUES (1, '2026-03-09', 1), (1, '2026-03-10', 4);
+PRAGMA user_version = 1;
+"""
+
+
+def make_v1_file(path):
+    """Create a database file the way version 1 of the program did, with two reviews."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA_V1)
+    conn.close()
+
+
+def review_columns(path):
+    conn = sqlite3.connect(path)
+    try:
+        return [row[1] for row in conn.execute("PRAGMA table_info(reviews)")]
+    finally:
+        conn.close()
+
+
 class TestOpenDb:
     def test_first_open_creates_parent_folder_and_schema(self, db_path):
         conn = open_db(db_path)
@@ -54,7 +112,7 @@ class TestOpenDb:
                 for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
             }
             assert {"decks", "cards", "chunks", "reviews"} <= tables
-            assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
             assert conn.in_transaction is False
         finally:
             conn.close()
@@ -92,7 +150,71 @@ class TestOpenDb:
                     )
                 ]
                 assert tables == ["decks"]
-                assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+                assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+            finally:
+                conn.close()
+
+    def test_a_new_file_has_the_v2_review_columns(self, db_path):
+        open_db(db_path).close()
+        assert review_columns(db_path) == [
+            "card_id",
+            "reviewed_on",
+            "grade",
+            "mode",
+            "given_answer",
+        ]
+
+    def test_v1_file_is_upgraded_and_keeps_its_data(self, db_path):
+        make_v1_file(db_path)
+        with CardStore(open_db(db_path)) as store:
+            assert store._conn.execute("PRAGMA user_version").fetchone()[0] == 2
+            assert store._conn.in_transaction is False
+            rows = store._conn.execute(
+                "SELECT card_id, reviewed_on, grade, mode, given_answer FROM reviews ORDER BY rowid"
+            ).fetchall()
+            assert [tuple(r) for r in rows] == [
+                (1, "2026-03-09", 1, None, None),
+                (1, "2026-03-10", 4, None, None),
+            ]
+            card = store.get_card(1)
+            assert (card.question, card.state.due_date) == ("What is ATP?", date(2026, 3, 12))
+            assert store.stats(TODAY).reviews_total == 2
+        assert review_columns(db_path)[-2:] == ["mode", "given_answer"]
+
+    def test_upgraded_file_accepts_new_reviews_and_reopening_is_a_no_op(self, db_path):
+        make_v1_file(db_path)
+        open_db(db_path).close()
+        with CardStore(open_db(db_path)) as store:  # the second open must not ALTER again
+            card = store.get_card(1)
+            state = review(card.state, 4, date(2026, 3, 12))
+            assert store.save_review(1, state, 4, mode="write", given_answer="Energy") is True
+            newest = store.recent_answers(1)[0]
+            assert (newest.mode, newest.given_answer) == ("write", "Energy")
+
+    def test_parallel_first_opens_of_a_v1_file_all_succeed(self, db_path):
+        count = 16
+        barrier = threading.Barrier(count)
+
+        def first_open(_):
+            barrier.wait()  # every thread sees user_version 1 and tries to upgrade
+            open_db(db_path).close()
+
+        for _ in range(5):
+            db_path.unlink(missing_ok=True)
+            make_v1_file(db_path)
+            with ThreadPoolExecutor(max_workers=count) as pool:
+                list(pool.map(first_open, range(count)))  # re-raises any StorageError
+            assert review_columns(db_path) == [
+                "card_id",
+                "reviewed_on",
+                "grade",
+                "mode",
+                "given_answer",
+            ]
+            conn = sqlite3.connect(db_path)
+            try:
+                assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+                assert conn.execute("SELECT count(*) FROM reviews").fetchone()[0] == 2
             finally:
                 conn.close()
 
@@ -131,9 +253,10 @@ class TestOpenDb:
         finally:
             store.close()
 
-    def test_database_from_a_newer_version_is_refused(self, db_path):
+    @pytest.mark.parametrize("version", [3, 99])
+    def test_database_from_a_newer_version_is_refused(self, db_path, version):
         conn = open_db(db_path)
-        conn.execute("PRAGMA user_version = 99")
+        conn.execute(f"PRAGMA user_version = {version}")
         conn.close()
         with pytest.raises(StorageError, match="newer"):
             open_db(db_path)
@@ -404,6 +527,36 @@ class TestSaveReview:
             store.save_review(card.id, card.state, 5)
         assert store.get_card(card.id) == card
 
+    def test_mode_and_given_answer_are_logged_with_the_review(self, store, deck):
+        add(store, deck, "Q1", "Q2", "Q3")
+        first, second, third = store.due_cards(TODAY)
+        for card, mode, given in ((first, "write", "my text"), (second, "choice", "")):
+            assert store.save_review(
+                card.id, review(card.state, 4, TODAY), 4, mode=mode, given_answer=given
+            )
+        assert store.save_review(third.id, review(third.state, 4, TODAY), 4)
+        rows = store._conn.execute("SELECT mode, given_answer FROM reviews ORDER BY rowid")
+        assert [tuple(r) for r in rows] == [("write", "my text"), ("choice", ""), (None, None)]
+
+    def test_unknown_mode_is_rejected_and_rolls_back(self, store, deck):
+        add(store, deck, "Q1")
+        card = store.due_cards(TODAY)[0]
+        with pytest.raises(StorageError):
+            store.save_review(card.id, review(card.state, 4, TODAY), 4, mode="typo")
+        assert store.get_card(card.id) == card
+        assert store._conn.execute("SELECT count(*) FROM reviews").fetchone()[0] == 0
+
+    def test_a_save_that_is_not_applied_logs_no_answer(self, store, deck):
+        add(store, deck, "Q1")
+        card = store.due_cards(TODAY)[0]
+        store.save_review(card.id, review(card.state, 4, TODAY), 4, mode="write", given_answer="a")
+        again = store.save_review(
+            card.id, review(card.state, 0, TODAY), 0, mode="write", given_answer="b"
+        )
+        assert again is False
+        rows = store._conn.execute("SELECT given_answer FROM reviews").fetchall()
+        assert [tuple(r) for r in rows] == [("a",)]
+
     def test_review_survives_reopening(self, db_path):
         with CardStore(open_db(db_path)) as first:
             deck = first.get_or_create_deck("Biology", None, NOW)
@@ -413,6 +566,80 @@ class TestSaveReview:
         with CardStore(open_db(db_path)) as second:
             assert second.get_card(card_id).state.last_reviewed == TODAY
             assert second.stats(TODAY).reviews_total == 1
+
+
+class TestRecentAnswers:
+    def seed(self, store, deck):
+        yesterday = TODAY - timedelta(days=1)
+        add(store, deck, "Q1", "Q2", today=yesterday)  # due yesterday, so reviewable then
+        first, second = store.due_cards(TODAY)
+        store.save_review(
+            first.id, review(first.state, 1, yesterday), 1, mode="write", given_answer="old try"
+        )
+        store.save_review(
+            second.id, review(second.state, 4, TODAY), 4, mode="write", given_answer="right"
+        )
+        card = store.get_card(first.id)
+        store.save_review(
+            card.id, review(card.state, 4, TODAY), 4, mode="choice", given_answer="Answer to Q1"
+        )
+        return first, second
+
+    def test_returns_the_reviews_newest_first_with_both_texts(self, store, deck):
+        first, second = self.seed(store, deck)
+        entries = store.recent_answers(deck.id)
+        assert [(e.card_id, e.reviewed_on, e.mode, e.given_answer, e.grade) for e in entries] == [
+            (first.id, TODAY, "choice", "Answer to Q1", 4),
+            (second.id, TODAY, "write", "right", 4),
+            (first.id, YESTERDAY, "write", "old try", 1),
+        ]
+        assert entries[0].question == "Q1"
+        assert entries[0].correct_answer == "answer to Q1"
+
+    def test_limit_keeps_the_newest(self, store, deck):
+        self.seed(store, deck)
+        assert [e.given_answer for e in store.recent_answers(deck.id, limit=2)] == [
+            "Answer to Q1",
+            "right",
+        ]
+        assert store.recent_answers(deck.id, limit=0) == []
+
+    def test_default_limit_is_20(self, store, deck):
+        questions = [f"Q{n}" for n in range(25)]
+        add(store, deck, *questions)
+        for card in store.due_cards(TODAY):
+            store.save_review(card.id, review(card.state, 4, TODAY), 4, mode="write")
+        assert len(store.recent_answers(deck.id)) == 20
+        assert len(store.recent_answers(deck.id, limit=100)) == 25
+
+    def test_negative_limit_is_rejected(self, store, deck):
+        with pytest.raises(ValueError, match="limit"):
+            store.recent_answers(deck.id, limit=-1)
+
+    def test_only_the_decks_own_reviews(self, store, deck):
+        self.seed(store, deck)
+        other = store.get_or_create_deck("Physics", None, NOW)
+        add(store, other, "Phys?")
+        card = store.due_cards(TODAY, other.id)[0]
+        store.save_review(card.id, review(card.state, 4, TODAY), 4, mode="write", given_answer="p")
+        assert [e.given_answer for e in store.recent_answers(other.id)] == ["p"]
+        assert len(store.recent_answers(deck.id)) == 3
+        assert store.recent_answers(999) == []
+
+    def test_old_reviews_without_an_answer_come_back_as_none(self, db_path):
+        make_v1_file(db_path)
+        with CardStore(open_db(db_path)) as store:
+            entries = store.recent_answers(1)
+        assert [(e.reviewed_on, e.mode, e.given_answer) for e in entries] == [
+            (date(2026, 3, 10), None, None),
+            (date(2026, 3, 9), None, None),
+        ]
+
+    def test_empty_answer_is_kept_apart_from_no_answer(self, store, deck):
+        add(store, deck, "Q1")
+        card = store.due_cards(TODAY)[0]
+        store.save_review(card.id, review(card.state, 0, TODAY), 0, mode="write", given_answer="")
+        assert store.recent_answers(deck.id)[0].given_answer == ""
 
 
 class TestStats:
