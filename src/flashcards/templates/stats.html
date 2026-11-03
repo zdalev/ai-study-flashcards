@@ -58,5 +58,6 @@
   {% if deck %}<a class="button secondary" href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a>
   <a class="button secondary" href="{{ url_for('all_stats') }}">All subjects stats</a>{% endif %}
   <a class="button secondary" href="{{ url_for('home') }}">Back to subjects</a>
+  {% if deck %}<a class="button danger" href="{{ url_for('deck_delete', deck_id=deck.id) }}">Delete subject</a>{% endif %}
 </div>
 {% endblock %}

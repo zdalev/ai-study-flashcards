@@ -65,6 +65,12 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
         f"/decks/<int(max={MAX_ID}):deck_id>/quiz", "quiz", quiz, methods=["GET", "POST"]
     )
     app.add_url_rule(
+        f"/decks/<int(max={MAX_ID}):deck_id>/delete",
+        "deck_delete",
+        deck_delete,
+        methods=["GET", "POST"],
+    )
+    app.add_url_rule(
         f"/decks/<int(max={MAX_ID}):deck_id>/cards/new",
         "card_new",
         card_new,
@@ -115,7 +121,11 @@ def stats_figures(stats: Stats) -> dict[str, str]:
 
 
 def home() -> str:
-    return render_template("home.html", summaries=get_store().deck_summaries(today()))
+    return render_template(
+        "home.html",
+        summaries=get_store().deck_summaries(today()),
+        deleted=request.args.get("deleted"),
+    )
 
 
 def all_stats() -> str:
@@ -375,6 +385,21 @@ def create_deck() -> str | tuple[str, int] | Response:
         )
     deck = get_store().get_or_create_deck(name, None, datetime.now())
     return redirect(url_for("card_new", deck_id=deck.id), code=303)
+
+
+def deck_delete(deck_id: int) -> str | Response:
+    """Ask for confirmation (GET, deletes nothing), then delete the subject (POST)."""
+    store = get_store()
+    deck = store.get_deck(deck_id)
+    if deck is None:
+        abort(404)
+    if request.method == "POST":
+        if not store.delete_deck(deck_id):
+            abort(404)  # deleted by a parallel request after the lookup
+        return redirect(url_for("home", deleted=deck.name), code=303)
+    return render_template(
+        "deck_delete.html", deck=deck, card_count=store.stats(today(), deck_id).total_cards
+    )
 
 
 def card_new(deck_id: int) -> str | tuple[str, int] | Response:
