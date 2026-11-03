@@ -22,15 +22,24 @@ MAX_GRADE = 5
 MAX_DECK_NAME_LEN = 100
 MAX_QUESTION_LEN = 500
 MAX_ANSWER_LEN = 2000
-# The quiz offers three answers; the server accepts any grade 0-5 (the scheduler is unchanged).
-GRADE_BUTTONS = ((0, "No idea"), (1, "Wrong"), (4, "Correct"))
+LABEL_DO_NOT_KNOW = "Do not know"
+LABEL_WRONG = "Wrong"
+LABEL_PARTIAL = "Partially correct"
+LABEL_CORRECT = "Correct"
+# Write mode offers four answers; the server accepts any grade 0-5 (the scheduler is unchanged).
+GRADE_BUTTONS = ((0, LABEL_DO_NOT_KNOW), (1, LABEL_WRONG), (3, LABEL_PARTIAL), (4, LABEL_CORRECT))
 MODE_WRITE = "write"
 MODE_CHOICE = "choice"
 MODES = (MODE_WRITE, MODE_CHOICE)
 MODE_LABELS = {MODE_WRITE: "Write", MODE_CHOICE: "Multiple choice"}
 OPTION_COUNT = 4  # the correct answer plus three others
-DONT_KNOW_FIELD = "dont_know"  # the form field of the "I don't know" button
-GRADE_NO_IDEA, GRADE_WRONG, GRADE_CORRECT = 0, 1, 4  # the grades multiple choice gives
+DONT_KNOW_FIELD = "dont_know"  # the form field of the "Do not know" button
+GRADE_DO_NOT_KNOW, GRADE_WRONG, GRADE_PARTIAL, GRADE_CORRECT = (
+    0,
+    1,
+    3,
+    4,
+)  # multiple choice gives all but 3
 HISTORY_ROWS = 20
 NO_VALUE = "\N{EM DASH}"
 MISSING = "-"  # a history cell with nothing recorded (reviews from before schema version 2)
@@ -128,10 +137,19 @@ def deck_stats(deck_id: int) -> str:
 
 
 def result_label(grade: int) -> str:
-    """The three-way result shown for a logged grade; other old grades count as Wrong or Correct."""
-    if grade == GRADE_NO_IDEA:
-        return "No idea"
-    return "Correct" if grade >= scheduler.PASS_GRADE else "Wrong"
+    """The result for a logged grade: 0 Do not know, 1-2 Wrong, 3 Partially correct, 4-5 Correct."""
+    if grade == GRADE_DO_NOT_KNOW:
+        return LABEL_DO_NOT_KNOW
+    if grade == GRADE_PARTIAL:
+        return LABEL_PARTIAL
+    return LABEL_CORRECT if grade > GRADE_PARTIAL else LABEL_WRONG
+
+
+def result_class(grade: int) -> str:
+    """The CSS class of a result line: green for Correct, amber for Partially correct, red else."""
+    if grade == GRADE_PARTIAL:
+        return "result-partial"
+    return "result-correct" if grade > GRADE_PARTIAL else "result-miss"
 
 
 def history_row(entry: ReviewEntry) -> dict[str, str]:
@@ -289,7 +307,7 @@ def grade_choice(store: CardStore, card: Card) -> tuple[str, int]:
     answer or another answer of the same subject; case and spacing do not matter.
     """
     if DONT_KNOW_FIELD in request.form:
-        return "", GRADE_NO_IDEA
+        return "", GRADE_DO_NOT_KNOW
     if "choice" not in request.form:
         abort(400)
     given_key = answer_key(form_text("choice"))
@@ -304,7 +322,7 @@ def grade_choice(store: CardStore, card: Card) -> tuple[str, int]:
 def submit_choice(store: CardStore, deck: Deck) -> str | Response:
     """Grade a multiple-choice answer automatically, save it and show the result.
 
-    The posted `choice` is the text of the clicked option (or the "I don't know" button is used),
+    The posted `choice` is the text of the clicked option (or the "Do not know" button is used),
     so the answer is graded on what the page showed. Text that is not an answer of the subject
     gives 400. A repeated submit finds the card not due and goes back to the quiz.
     """
@@ -322,7 +340,7 @@ def submit_choice(store: CardStore, deck: Deck) -> str | Response:
         card=card,
         given_answer=given,
         result=result_label(grade),
-        correct=grade == GRADE_CORRECT,
+        result_class=result_class(grade),
     )
 
 

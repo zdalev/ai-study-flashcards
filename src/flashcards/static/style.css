@@ -105,6 +105,7 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .options .dont-know { color: var(--muted); border-style: dashed; }
 .result { font-size: 1.15rem; font-weight: 700; margin: 1rem 0 0.5rem; }
 .result-correct { color: #1b7a3a; }
+.result-partial { color: #8a5a00; }
 .result-miss { color: #8a1c14; }
 
 .section-title { margin: 1.5rem 0 0.5rem; }
