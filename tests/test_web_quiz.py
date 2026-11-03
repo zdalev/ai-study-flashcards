@@ -153,7 +153,7 @@ def test_answer_step_shows_both_answers_and_the_four_grade_buttons(client, seed)
     assert buttons == [
         ("0", "Do not know"),
         ("1", "Wrong"),
-        ("3", "Partially correct"),
+        ("2", "Partially correct"),
         ("4", "Correct"),
     ]
     for old_label in ("Blackout", "Wrong but familiar", "Hard", "Good", "Perfect"):
@@ -278,14 +278,21 @@ def test_post_wrong_resets_repetitions_and_lowers_ease(client, seed, db_path):
     assert review_rows(db_path) == [(1, WEB_TODAY.isoformat(), 1, "write", None)]
 
 
-def test_post_partially_correct_is_grade_3_with_a_lower_ease(client, seed, db_path):
+def test_post_partially_correct_is_grade_2_and_the_card_comes_back(client, seed, db_path):
     deck_id = seed("Biology", questions=("A?",))
-    assert post(client, deck_id, 1, 3).status_code == 303
+    assert post(client, deck_id, 1, 2).status_code == 303
     state = card_row(db_path, 1).state
-    assert (state.repetitions, state.interval_days) == (1, 1)
+    assert (state.repetitions, state.interval_days) == (0, 1)
     assert state.due_date == TOMORROW
-    assert state.ease_factor == 2.36
-    assert review_rows(db_path) == [(1, WEB_TODAY.isoformat(), 3, "write", None)]
+    assert state.ease_factor == 2.18
+    assert review_rows(db_path) == [(1, WEB_TODAY.isoformat(), 2, "write", None)]
+
+
+def test_partially_correct_counts_as_a_miss_in_accuracy(client, seed):
+    deck_id = seed("Biology", questions=("A?", "B?"))
+    assert post(client, deck_id, 1, 2).status_code == 303
+    assert post(client, deck_id, 2, 4).status_code == 303
+    assert "50% (1/2)" in text(client.get(f"/decks/{deck_id}/stats"))
 
 
 def test_the_old_grade_labels_appear_on_no_page(client, seed):
