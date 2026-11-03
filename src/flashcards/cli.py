@@ -1,18 +1,21 @@
 """Command line entry point: generation and admin commands (studying happens in the web app)."""
 
 import argparse
+import io
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from flashcards import __version__
 from flashcards.config import load_settings
-from flashcards.errors import DemoDataError, FlashcardsError
+from flashcards.errors import DemoDataError, ExportError, FlashcardsError
+from flashcards.export import export_csv
 from flashcards.models import CardDraft
 from flashcards.pipeline import CardSource, GenerateReport, count_noun, generate_deck, load_demo
 from flashcards.storage import CardStore, open_db
@@ -20,6 +23,7 @@ from flashcards.storage import CardStore, open_db
 DEFAULT_DEMO_FILE = Path("examples") / "demo-cards.json"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5000
+STDOUT_NAME = "-"  # the OUT value that means "write to standard output"
 
 
 def _make_claude_client(api_key: str | None) -> Any:
@@ -65,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help=f"demo deck file (default: {DEFAULT_DEMO_FILE.as_posix()}, relative to the cwd)",
     )
+    export = commands.add_parser("export", help="write all cards (or one deck) to a CSV file")
+    export.add_argument(
+        "out",
+        metavar="OUT.csv",
+        help=f"CSV file to write (overwritten if it exists), or {STDOUT_NAME} for standard output",
+    )
+    export.add_argument("--deck", help="export only this deck (default: all decks)")
     serve = commands.add_parser("serve", help="start the web app (study in the browser)")
     serve.add_argument(
         "--host", default=DEFAULT_HOST, help=f"address to listen on (default: {DEFAULT_HOST})"
@@ -141,6 +152,43 @@ def _cmd_load_demo(args: argparse.Namespace, deps: Deps) -> int:
     return 0
 
 
+def _cmd_export(args: argparse.Namespace, deps: Deps) -> int:
+    """Export cards to CSV. Reads settings only for the database path: no client, no API key."""
+    settings = load_settings()
+    with CardStore(open_db(args.db or settings.db_path)) as store:
+        deck_id = None
+        if args.deck is not None:
+            deck = store.find_deck(args.deck)
+            if deck is None:
+                raise ExportError(f"deck not found: {args.deck}")
+            deck_id = deck.id
+        try:
+            with _open_csv_output(args.out) as out:
+                exported = export_csv(store, out, deck_id)
+        except OSError as error:
+            raise ExportError(f"cannot write {args.out}: {error.strerror or error}") from error
+    if args.out != STDOUT_NAME:  # keep stdout clean when it carries the CSV
+        print(f"Exported {count_noun(exported, 'card')} to {args.out}", file=sys.stderr)
+    return 0
+
+
+@contextmanager
+def _open_csv_output(target: str) -> Iterator[TextIO]:
+    """Open the CSV target as UTF-8 text without newline translation (`-` = standard output)."""
+    if target == STDOUT_NAME:
+        # Wrap the byte stream so the encoding does not depend on the console's locale.
+        sys.stdout.flush()
+        out = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", newline="")
+        try:
+            yield out
+        finally:
+            out.flush()
+            out.detach()  # leave sys.stdout's buffer open
+        return
+    with open(target, "w", encoding="utf-8", newline="") as file:
+        yield file
+
+
 def _cmd_serve(args: argparse.Namespace, deps: Deps) -> int:
     """Run the web app. Needs no API key; `anthropic` is never imported."""
     from flashcards.web import create_app
@@ -212,5 +260,6 @@ def _summary(report: GenerateReport) -> str:
 _COMMANDS: dict[str, Callable[[argparse.Namespace, Deps], int]] = {
     "generate": _cmd_generate,
     "load-demo": _cmd_load_demo,
+    "export": _cmd_export,
     "serve": _cmd_serve,
 }

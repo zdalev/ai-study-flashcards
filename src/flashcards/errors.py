@@ -27,3 +27,7 @@ class DemoDataError(FlashcardsError):
 
 class ConfigError(FlashcardsError):
     """A setting in the environment or `.env` has an invalid value."""
+
+
+class ExportError(FlashcardsError):
+    """An export could not be written (unknown deck, or the output file cannot be written)."""

@@ -322,6 +322,26 @@ class CardStore:
             rows = self._conn.execute(sql, params).fetchall()
         return [_to_card(row) for row in rows]
 
+    def cards_with_deck_names(self, deck_id: int | None = None) -> list[tuple[str, Card]]:
+        """Every card (of one deck when `deck_id` is given) with its deck's name.
+
+        Ordered by deck name, then card id.
+        """
+        sql = (
+            "SELECT d.name AS deck_name,"
+            " c.id, c.deck_id, c.question, c.answer, c.ease_factor, c.interval_days,"
+            " c.repetitions, c.due_date, c.last_reviewed"
+            " FROM cards c JOIN decks d ON d.id = c.deck_id"
+        )
+        params: list[object] = []
+        if deck_id is not None:
+            sql += " WHERE c.deck_id = ?"
+            params.append(deck_id)
+        sql += " ORDER BY d.name, c.id"
+        with _db_errors("reading cards"):
+            rows = self._conn.execute(sql, params).fetchall()
+        return [(row["deck_name"], _to_card(row)) for row in rows]
+
     # --- reviews ---
 
     def save_review(self, card_id: int, state: ReviewState, grade: int) -> bool:
