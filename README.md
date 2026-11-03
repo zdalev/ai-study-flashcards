@@ -124,7 +124,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 455 tests, about 2 seconds
+pytest            # 460 tests, about 2 seconds
 ruff check .
 ```
 
@@ -135,7 +135,7 @@ pages are tested with Flask's test client against a temporary database and a fix
 ## Known limitations
 
 - A local study tool for one person, not a hosted service.
-- `flashcards serve` uses Flask's development server and listens on `127.0.0.1` only.
+- `flashcards serve` uses Flask's development server and listens on `127.0.0.1` only by default (`--host` can change it).
 - No login and no CSRF protection.
 - Duplicate cards are detected by question text within a deck (spaces normalised,
   case-insensitive for ASCII letters only, via SQLite `NOCASE`); reworded questions are kept as
