@@ -118,9 +118,13 @@ def deck_of_five(db_path, name="Biology"):
 def history_cells(body):
     """The text cells of every 'Recent answers' body row, unescaped."""
     section = body.split("Recent answers", 1)[1]
-    rows = re.findall(r"<tr>\s*(<td>.*?)</tr>", section, flags=re.S)
+    rows = re.findall(r"<tr>\s*(<td[^>]*>.*?)</tr>", section, flags=re.S)
     return [
-        [html.unescape(cell) for cell in re.findall(r"<td>(.*?)</td>", row, re.S)] for row in rows
+        [
+            html.unescape(re.sub(r"<[^>]+>", "", cell))
+            for cell in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+        ]
+        for row in rows
     ]
 
 

@@ -153,7 +153,7 @@ def result_class(grade: int) -> str:
 
 
 def history_row(entry: ReviewEntry) -> dict[str, str]:
-    """One line of the 'Recent answers' table, as display text."""
+    """One line of the 'Recent answers' table, as display text (plus the result's CSS class)."""
     given = MISSING if entry.given_answer is None else entry.given_answer or "(no answer)"
     return {
         "date": entry.reviewed_on.isoformat(),
@@ -162,6 +162,7 @@ def history_row(entry: ReviewEntry) -> dict[str, str]:
         "given_answer": given,
         "correct_answer": entry.correct_answer,
         "result": result_label(entry.grade),
+        "result_class": result_class(entry.grade),
     }
 
 

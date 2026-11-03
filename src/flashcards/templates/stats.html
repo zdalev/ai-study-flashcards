@@ -1,24 +1,37 @@
 {% extends "base.html" %}
-{% set heading = deck.name if deck else "All subjects" %}
+{% set heading = (deck.name[:1]|upper ~ deck.name[1:]) if deck else "All subjects" %}
 {% block title %}Stats: {{ heading }}{% endblock %}
+{% block width %} wide{% endblock %}
 {% block content %}
-<h1>Stats: {{ heading }}</h1>
-<table class="stats">
+<div class="study-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Stats</p>
+    <h1>Stats: {{ heading }}</h1>
+  </div>
+  {% if deck %}
+  <div class="head-actions">
+    <a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='write') }}">Study: Write</a>
+    <a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Study: Multiple choice</a>
+  </div>
+  {% endif %}
+</div>
+<table class="stats tiles">
   <tbody>
-    <tr><th scope="row">Accuracy today</th><td>{{ figures.accuracy_today }}</td></tr>
-    <tr><th scope="row">Accuracy all time</th><td>{{ figures.accuracy_all_time }}</td></tr>
+    <tr class="tile-main"><th scope="row">Accuracy today</th><td>{{ figures.accuracy_today }}</td></tr>
+    <tr class="tile-main"><th scope="row">Accuracy all time</th><td>{{ figures.accuracy_all_time }}</td></tr>
     <tr><th scope="row">Cards</th><td>{{ figures.total_cards }}</td></tr>
-    <tr><th scope="row">Due today</th><td>{{ figures.due_today }}</td></tr>
+    <tr class="tile-due"><th scope="row">Due today</th><td>{{ figures.due_today }}</td></tr>
     <tr><th scope="row">Reviewed today</th><td>{{ figures.reviewed_today }}</td></tr>
     <tr><th scope="row">Mature cards</th><td>{{ figures.mature_cards }}</td></tr>
     <tr><th scope="row">New cards</th><td>{{ figures.new_cards }}</td></tr>
     <tr><th scope="row">Average ease</th><td>{{ figures.average_ease }}</td></tr>
-    <tr><th scope="row">Next due</th><td>{{ figures.next_due }}</td></tr>
+    <tr class="tile-wide"><th scope="row">Next due</th><td>{{ figures.next_due }}</td></tr>
   </tbody>
 </table>
 {% if deck %}
 <h2 class="section-title">Recent answers</h2>
 {% if history %}
+<div class="table-wrap">
 <table class="history">
   <thead>
     <tr><th>Date</th><th>Mode</th><th>Question</th><th>Your answer</th><th>Correct answer</th><th>Result</th></tr>
@@ -26,25 +39,24 @@
   <tbody>
     {% for row in history %}
     <tr>
-      <td>{{ row.date }}</td>
-      <td>{{ row.mode }}</td>
+      <td class="nowrap muted-cell">{{ row.date }}</td>
+      <td class="nowrap muted-cell">{{ row.mode }}</td>
       <td>{{ row.question }}</td>
       <td>{{ row.given_answer }}</td>
       <td>{{ row.correct_answer }}</td>
-      <td>{{ row.result }}</td>
+      <td class="nowrap"><span class="pill {{ row.result_class }}">{{ row.result }}</span></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
-<p class="muted">No answers yet. Study this subject and your latest answers show up here.</p>
+<p class="empty">No answers yet. Study this subject and your latest answers show up here.</p>
 {% endif %}
 {% endif %}
-<p>
-  {% if deck %}<a href="{{ url_for('quiz', deck_id=deck.id, mode='write') }}">Study: Write</a> &middot;
-  <a href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Study: Multiple choice</a> &middot;
-  <a href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a> &middot;
-  <a href="{{ url_for('all_stats') }}">All subjects stats</a> &middot;{% endif %}
-  <a href="{{ url_for('home') }}">Back to subjects</a>
-</p>
+<div class="page-actions">
+  {% if deck %}<a class="button secondary" href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a>
+  <a class="button secondary" href="{{ url_for('all_stats') }}">All subjects stats</a>{% endif %}
+  <a class="button secondary" href="{{ url_for('home') }}">Back to subjects</a>
+</div>
 {% endblock %}
