@@ -201,9 +201,17 @@ def render_deck_form(name: str, error: str | None, status: int = 200) -> tuple[s
     return html, status
 
 
+def form_text(field: str) -> str:
+    """A form field with every line break as LF.
+
+    Browsers post textarea line breaks as CRLF but count them as one character for `maxlength`.
+    """
+    return request.form.get(field, "").replace("\r\n", "\n").replace("\r", "\n")
+
+
 def create_deck() -> str | tuple[str, int] | Response:
     """Create the subject (or reuse the one with the same name) and go to its add-card form."""
-    name = request.form.get("name", "")
+    name = form_text("name")
     if not name.strip():
         return render_deck_form(name, "Please enter a subject name.", 400)
     if len(name.strip()) > MAX_DECK_NAME_LEN:
@@ -255,8 +263,8 @@ def card_form_error(question: str, answer: str) -> str | None:
 
 def create_card(store: CardStore, deck: Deck) -> tuple[str, int] | Response:
     """Save one card (due today), then redirect (POST/redirect/GET) to a fresh form."""
-    question = request.form.get("question", "")
-    answer = request.form.get("answer", "")
+    question = form_text("question")
+    answer = form_text("answer")
     error = card_form_error(question, answer)
     if error:
         return render_card_form(deck, question, answer, error, 400)

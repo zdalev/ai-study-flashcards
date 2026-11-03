@@ -27,15 +27,18 @@ from flashcards.scheduler import PASS_GRADE
 
 SCHEMA_VERSION = 1
 
+# BEGIN IMMEDIATE takes the write lock first, so parallel first opens of a new file queue up
+# (up to the connection's busy timeout); the IF NOT EXISTS clauses make the ones that were
+# already past the `user_version == 0` check harmless once the winner has committed.
 _SCHEMA_V1 = """
-BEGIN;
-CREATE TABLE decks (
+BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS decks (
     id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
     source_path TEXT,
     created_at  TEXT NOT NULL
 );
-CREATE TABLE cards (
+CREATE TABLE IF NOT EXISTS cards (
     id            INTEGER PRIMARY KEY,
     deck_id       INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
     question      TEXT NOT NULL COLLATE NOCASE CHECK (length(trim(question)) > 0),
@@ -48,19 +51,19 @@ CREATE TABLE cards (
     last_reviewed TEXT,
     UNIQUE (deck_id, question)
 );
-CREATE INDEX idx_cards_due ON cards (due_date);
-CREATE TABLE chunks (
+CREATE INDEX IF NOT EXISTS idx_cards_due ON cards (due_date);
+CREATE TABLE IF NOT EXISTS chunks (
     deck_id    INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
     digest     TEXT NOT NULL,
     created_at TEXT NOT NULL,
     PRIMARY KEY (deck_id, digest)
 );
-CREATE TABLE reviews (
+CREATE TABLE IF NOT EXISTS reviews (
     card_id     INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     reviewed_on TEXT    NOT NULL,
     grade       INTEGER NOT NULL CHECK (grade BETWEEN 0 AND 5)
 );
-CREATE INDEX idx_reviews_day ON reviews (reviewed_on);
+CREATE INDEX IF NOT EXISTS idx_reviews_day ON reviews (reviewed_on);
 PRAGMA user_version = 1;
 COMMIT;
 """
