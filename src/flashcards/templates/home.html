@@ -1,30 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Subjects{% endblock %}
+{% block width %} wide{% endblock %}
 {% block content %}
 <h1>Subjects</h1>
 {% if summaries %}
 <ul class="decks">
   {% for summary in summaries %}
   <li class="deck">
-    <div class="deck-info">
+    <div class="deck-head">
       <h2>{{ summary.deck.name }}</h2>
-      <p class="muted">
-        {{ summary.cards }} {{ "card" if summary.cards == 1 else "cards" }}
-        &middot;
-        <span class="due{% if summary.due %} has-due{% endif %}">{{ summary.due }} due</span>
-      </p>
+      <span class="badge{% if summary.due %} has-due{% endif %}">{{ summary.due }} due</span>
     </div>
-    <div class="deck-actions">
+    <p class="muted">{{ summary.cards }} {{ "card" if summary.cards == 1 else "cards" }}</p>
+    <div class="deck-study">
       <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id, mode='write') }}">Study: Write</a>
       <a class="button" href="{{ url_for('quiz', deck_id=summary.deck.id, mode='choice') }}">Study: Multiple choice</a>
+    </div>
+    <div class="deck-links">
       <a class="button secondary" href="{{ url_for('card_new', deck_id=summary.deck.id) }}">Add card</a>
       <a class="button secondary" href="{{ url_for('deck_stats', deck_id=summary.deck.id) }}">Stats</a>
     </div>
   </li>
   {% endfor %}
 </ul>
-<p><a class="button" href="{{ url_for('deck_new') }}">New subject</a>
-  <a href="{{ url_for('all_stats') }}">All subjects stats</a></p>
+<div class="page-actions">
+  <a class="button" href="{{ url_for('deck_new') }}">New subject</a>
+  <a class="button secondary" href="{{ url_for('all_stats') }}">All subjects stats</a>
+</div>
 {% else %}
 <div class="empty">
   <p>There are no subjects yet.</p>

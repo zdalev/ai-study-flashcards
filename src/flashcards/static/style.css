@@ -18,7 +18,8 @@ body {
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-.container { max-width: 44rem; margin: 0 auto; padding: 0 1rem; }
+.container { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem; }
+.container.wide { max-width: 60rem; }
 
 .site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
 .site-header .container {
@@ -27,20 +28,36 @@ body {
 .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 nav a { margin-left: 1rem; }
 
-main { padding-top: 1.5rem; padding-bottom: 3rem; }
-h1 { font-size: 1.6rem; margin: 0 0 1rem; }
+main.container { padding-top: 2rem; padding-bottom: 3rem; }
+h1 { font-size: 1.6rem; margin: 0 0 1.25rem; }
 h2 { font-size: 1.1rem; margin: 0; overflow-wrap: anywhere; }
 a { color: var(--accent); }
 code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .muted { color: var(--muted); margin: 0.15rem 0 0; }
 
-.decks { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.75rem; }
-.deck {
-  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+.decks {
+  list-style: none; margin: 0 0 1.25rem; padding: 0;
+  display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
 }
-.deck-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
-.has-due { color: var(--due); font-weight: 600; }
+.deck {
+  display: flex; flex-direction: column; gap: 0.75rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem;
+  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.06);
+}
+.deck-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.deck-head h2 { font-size: 1.2rem; }
+.deck-head h2::first-letter { text-transform: uppercase; }
+.deck .muted { margin: -0.5rem 0 0; }
+.badge {
+  flex: none; font-size: 0.8rem; font-weight: 600; padding: 0.15rem 0.6rem; border-radius: 999px;
+  background: #eceff3; color: var(--muted);
+}
+.badge.has-due { background: #fdf0e1; color: var(--due); }
+.deck-study { display: grid; gap: 0.5rem; margin-top: auto; }
+.deck-links { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.deck .button { text-align: center; }
+.page-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.due.has-due, .stats .has-due { color: var(--due); font-weight: 600; }
 
 .button {
   display: inline-block; padding: 0.4rem 0.9rem; border-radius: 6px; text-decoration: none;
@@ -49,7 +66,7 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
 .button.secondary { background: var(--surface); color: var(--accent); }
 
 .stats {
-  width: 100%; border-collapse: collapse; background: var(--surface);
+  width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--surface);
   border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem;
 }
 .stats th, .stats td { text-align: left; padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
