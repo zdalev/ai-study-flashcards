@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Study: {{ deck.name }}{% endblock %}
+{% block content %}
+<h1>Study: {{ deck.name }}</h1>
+<section class="card">
+  <p class="label">Question</p>
+  <p class="question">{{ card.question }}</p>
+  <p class="label">Your choice</p>
+  {% if given_answer %}
+  <p class="answer">{{ given_answer }}</p>
+  {% else %}
+  <p class="answer muted">(no answer)</p>
+  {% endif %}
+  <p class="label">Correct answer</p>
+  <p class="answer">{{ card.answer }}</p>
+  <p class="result {{ 'result-correct' if correct else 'result-miss' }}">{{ result }}</p>
+  <p><a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Next card</a></p>
+</section>
+<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+  <a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}

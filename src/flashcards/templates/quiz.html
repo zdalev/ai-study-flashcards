@@ -3,6 +3,10 @@
 {% block content %}
 <h1>Study: {{ deck.name }}</h1>
 <p class="muted">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</p>
+{% if fallback %}
+<p class="notice">Multiple choice needs at least {{ choice_min_answers }} different answers in this subject,
+  so this card uses write mode.</p>
+{% endif %}
 <section class="card">
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>

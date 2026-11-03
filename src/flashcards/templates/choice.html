@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Study: {{ deck.name }}{% endblock %}
+{% block content %}
+<h1>Study: {{ deck.name }}</h1>
+<p class="muted">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</p>
+<section class="card">
+  <p class="label">Question</p>
+  <p class="question">{{ card.question }}</p>
+  <form method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
+    <input type="hidden" name="card_id" value="{{ card.id }}">
+    <input type="hidden" name="mode" value="choice">
+    <h2>Choose the answer</h2>
+    <div class="options">
+      {% for option in options %}
+      <button type="submit" name="choice" value="{{ loop.index0 }}">{{ option }}</button>
+      {% endfor %}
+      <button type="submit" name="choice" value="idk" class="dont-know">I don't know</button>
+    </div>
+  </form>
+</section>
+<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+  <a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}

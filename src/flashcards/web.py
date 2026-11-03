@@ -3,6 +3,7 @@
 This module must never import `anthropic` (directly or indirectly): the app needs no API key.
 """
 
+import random
 from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
@@ -13,8 +14,8 @@ from werkzeug.wrappers import Response
 from flashcards import scheduler
 from flashcards.config import load_settings
 from flashcards.errors import StorageError
-from flashcards.models import Card, CardDraft, Deck, Stats
-from flashcards.storage import CardStore, open_db
+from flashcards.models import Card, CardDraft, Deck, ReviewEntry, Stats
+from flashcards.storage import CardStore, normalize_text, open_db
 
 MAX_ID = 2**63 - 1  # sqlite3 binds 64-bit ints only; a bigger id would raise OverflowError
 MAX_GRADE = 5
@@ -24,8 +25,15 @@ MAX_ANSWER_LEN = 2000
 # The quiz offers three answers; the server accepts any grade 0-5 (the scheduler is unchanged).
 GRADE_BUTTONS = ((0, "No idea"), (1, "Wrong"), (4, "Correct"))
 MODE_WRITE = "write"
-MODES = (MODE_WRITE,)
+MODE_CHOICE = "choice"
+MODES = (MODE_WRITE, MODE_CHOICE)
+MODE_LABELS = {MODE_WRITE: "Write", MODE_CHOICE: "Multiple choice"}
+OPTION_COUNT = 4  # the correct answer plus three others
+CHOICE_DONT_KNOW = "idk"  # the value posted by the "I don't know" button
+GRADE_NO_IDEA, GRADE_WRONG, GRADE_CORRECT = 0, 1, 4  # the grades multiple choice gives
+HISTORY_ROWS = 20
 NO_VALUE = "\N{EM DASH}"
+MISSING = "-"  # a history cell with nothing recorded (reviews from before schema version 2)
 
 
 def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
@@ -112,8 +120,31 @@ def deck_stats(deck_id: int) -> str:
     if deck is None:
         abort(404)
     return render_template(
-        "stats.html", deck=deck, figures=stats_figures(store.stats(today(), deck_id))
+        "stats.html",
+        deck=deck,
+        figures=stats_figures(store.stats(today(), deck_id)),
+        history=[history_row(entry) for entry in store.recent_answers(deck_id, HISTORY_ROWS)],
     )
+
+
+def result_label(grade: int) -> str:
+    """The three-way result shown for a logged grade; other old grades count as Wrong or Correct."""
+    if grade == GRADE_NO_IDEA:
+        return "No idea"
+    return "Correct" if grade >= scheduler.PASS_GRADE else "Wrong"
+
+
+def history_row(entry: ReviewEntry) -> dict[str, str]:
+    """One line of the 'Recent answers' table, as display text."""
+    given = MISSING if entry.given_answer is None else entry.given_answer or "(no answer)"
+    return {
+        "date": entry.reviewed_on.isoformat(),
+        "mode": MODE_LABELS.get(entry.mode or "", MISSING),
+        "question": entry.question,
+        "given_answer": given,
+        "correct_answer": entry.correct_answer,
+        "result": result_label(entry.grade),
+    }
 
 
 def quiz(deck_id: int) -> str | Response:
@@ -122,6 +153,8 @@ def quiz(deck_id: int) -> str | Response:
     if deck is None:
         abort(404)
     if request.method == "POST":
+        if quiz_mode(request.form) == MODE_CHOICE:
+            return submit_choice(store, deck)
         if request.form.get("step") == "answer":
             return show_reveal(store, deck)
         return submit_grade(store, deck_id)
@@ -146,14 +179,49 @@ def show_quiz(store: CardStore, deck: Deck) -> str:
             accuracy_today=percent_text(stats.correct_today, stats.reviews_today),
             next_due=NO_VALUE if stats.next_due is None else stats.next_due.isoformat(),
         )
+    card = due[0]
+    mode = quiz_mode(request.args)
+    options = choice_options(store, card) if mode == MODE_CHOICE else None
+    if options is not None:
+        return render_template(
+            "choice.html", deck=deck, card=card, due_count=len(due), options=options
+        )
     return render_template(
         "quiz.html",
         deck=deck,
-        card=due[0],
+        card=card,
         due_count=len(due),
-        mode=quiz_mode(request.args),
+        mode=MODE_WRITE,
         max_answer=MAX_ANSWER_LEN,
+        fallback=mode == MODE_CHOICE,
+        choice_min_answers=OPTION_COUNT,
     )
+
+
+def answer_key(text: str) -> str:
+    """Answers that differ only in case or spacing count as the same option."""
+    return normalize_text(text).casefold()
+
+
+def choice_options(store: CardStore, card: Card) -> list[str] | None:
+    """The shuffled answers to pick from: the correct one plus three others of the same deck.
+
+    The other answers are distinct (ignoring case and spacing) and never equal the correct one.
+    The seed is the card and the day, so a refresh shows the same options in the same order.
+    Returns None when the deck has fewer than four distinct answers.
+    """
+    correct_key = answer_key(card.answer)
+    others: dict[str, str] = {}
+    for _deck_name, other in store.cards_with_deck_names(card.deck_id):
+        key = answer_key(other.answer)
+        if key != correct_key:
+            others.setdefault(key, other.answer)
+    if len(others) < OPTION_COUNT - 1:
+        return None
+    rng = random.Random(f"{card.id}-{today().isoformat()}")
+    options = [card.answer, *rng.sample(list(others.values()), OPTION_COUNT - 1)]
+    rng.shuffle(options)
+    return options
 
 
 def form_card(store: CardStore, deck_id: int) -> Card:
@@ -211,6 +279,41 @@ def submit_grade(store: CardStore, deck_id: int) -> Response:
         # False: a parallel request reviewed the card first, so this one is dropped as well.
         store.save_review(card.id, new_state, grade, mode=mode, given_answer=given)
     return redirect(url_for("quiz", deck_id=deck_id, mode=mode), code=303)
+
+
+def submit_choice(store: CardStore, deck: Deck) -> str | Response:
+    """Grade a multiple-choice answer automatically, save it and show the result.
+
+    The options are rebuilt from the card and the day, so the posted `choice` is an index into
+    them (or "idk") and a tampered value gives 400. A repeated submit finds the card not due
+    and goes back to the quiz.
+    """
+    card = form_card(store, deck.id)
+    back = redirect(url_for("quiz", deck_id=deck.id, mode=MODE_CHOICE), code=303)
+    if not scheduler.is_due(card.state, today()):
+        return back
+    options = choice_options(store, card)
+    if options is None:  # the deck lost answers since the page was shown
+        return back
+    choice = request.form.get("choice", "")
+    if choice == CHOICE_DONT_KNOW:
+        given, grade = "", GRADE_NO_IDEA
+    elif choice in {str(index) for index in range(len(options))}:
+        given = options[int(choice)]
+        grade = GRADE_CORRECT if given == card.answer else GRADE_WRONG
+    else:
+        abort(400)
+    new_state = scheduler.review(card.state, grade, today())
+    if not store.save_review(card.id, new_state, grade, mode=MODE_CHOICE, given_answer=given):
+        return back  # a parallel request reviewed the card first
+    return render_template(
+        "choice_result.html",
+        deck=deck,
+        card=card,
+        given_answer=given,
+        result=result_label(grade),
+        correct=grade == GRADE_CORRECT,
+    )
 
 
 def deck_new() -> str | Response:

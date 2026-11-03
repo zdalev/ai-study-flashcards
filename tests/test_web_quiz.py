@@ -84,7 +84,7 @@ def test_get_shows_the_question_and_an_answer_box_but_not_the_answer(client, see
     assert "<script" not in body
 
 
-@pytest.mark.parametrize("query", ["", "?mode=write", "?mode=nonsense", "?mode=", "?mode=choice"])
+@pytest.mark.parametrize("query", ["", "?mode=write", "?mode=nonsense", "?mode="])
 def test_get_defaults_to_write_mode_for_a_missing_or_unknown_mode(client, seed, query):
     deck_id = seed("Biology", questions=("What is DNA?",))
     body = text(client.get(quiz_url(deck_id) + query))
