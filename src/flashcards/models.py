@@ -53,6 +53,19 @@ class DeckSummary:
     due: int
 
 
+@dataclass(frozen=True)
+class ReviewEntry:
+    """One logged review with its card's texts, for the history on the stats page."""
+
+    card_id: int
+    reviewed_on: date
+    mode: str | None  # 'write', 'choice', or None for a review from before version 2
+    question: str
+    given_answer: str | None  # None = not recorded, '' = an empty answer
+    correct_answer: str
+    grade: int
+
+
 def _accuracy(correct: int, total: int) -> float | None:
     return correct / total if total else None
 

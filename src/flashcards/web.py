@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response
 from flashcards import scheduler
 from flashcards.config import load_settings
 from flashcards.errors import StorageError
-from flashcards.models import CardDraft, Deck, Stats
+from flashcards.models import Card, CardDraft, Deck, Stats
 from flashcards.storage import CardStore, open_db
 
 MAX_ID = 2**63 - 1  # sqlite3 binds 64-bit ints only; a bigger id would raise OverflowError
@@ -21,14 +21,10 @@ MAX_GRADE = 5
 MAX_DECK_NAME_LEN = 100
 MAX_QUESTION_LEN = 500
 MAX_ANSWER_LEN = 2000
-GRADE_LABELS = (
-    (0, "Blackout"),
-    (1, "Wrong"),
-    (2, "Wrong but familiar"),
-    (3, "Hard"),
-    (4, "Good"),
-    (5, "Perfect"),
-)
+# The quiz offers three answers; the server accepts any grade 0-5 (the scheduler is unchanged).
+GRADE_BUTTONS = ((0, "No idea"), (1, "Wrong"), (4, "Correct"))
+MODE_WRITE = "write"
+MODES = (MODE_WRITE,)
 NO_VALUE = "\N{EM DASH}"
 
 
@@ -126,20 +122,26 @@ def quiz(deck_id: int) -> str | Response:
     if deck is None:
         abort(404)
     if request.method == "POST":
+        if request.form.get("step") == "answer":
+            return show_reveal(store, deck)
         return submit_grade(store, deck_id)
     return show_quiz(store, deck)
+
+
+def quiz_mode(source: Mapping[str, str]) -> str:
+    """The answer mode named in the query string or form; anything unknown means write."""
+    mode = source.get("mode")
+    return mode if mode in MODES else MODE_WRITE
 
 
 def show_quiz(store: CardStore, deck: Deck) -> str:
     """The next due card (most overdue first), or the done page when nothing is due."""
     due = store.due_cards(today(), deck.id)
-    previous = previous_card_note(store, deck.id)
     if not due:
         stats = store.stats(today(), deck.id)
         return render_template(
             "done.html",
             deck=deck,
-            previous=previous,
             reviewed_today=stats.reviewed_today,
             accuracy_today=percent_text(stats.correct_today, stats.reviews_today),
             next_due=NO_VALUE if stats.next_due is None else stats.next_due.isoformat(),
@@ -149,45 +151,66 @@ def show_quiz(store: CardStore, deck: Deck) -> str:
         deck=deck,
         card=due[0],
         due_count=len(due),
-        previous=previous,
-        grades=GRADE_LABELS,
+        mode=quiz_mode(request.args),
+        max_answer=MAX_ANSWER_LEN,
     )
 
 
-def previous_card_note(store: CardStore, deck_id: int) -> dict[str, Any] | None:
-    """Feedback for `?prev=<card_id>`: when that card is next due. None if prev is unusable.
-
-    An invalid, unknown or foreign id, or a card that is still due today (so it was not just
-    reviewed), is ignored without an error.
-    """
-    card_id = request.args.get("prev", type=int)
-    if card_id is None or not 0 < card_id <= MAX_ID:
-        return None
-    card = store.get_card(card_id)
-    if card is None or card.deck_id != deck_id:
-        return None
-    days = (card.state.due_date - today()).days
-    if days <= 0:
-        return None
-    return {"due_date": card.state.due_date.isoformat(), "days": days}
-
-
-def submit_grade(store: CardStore, deck_id: int) -> Response:
-    """Apply one answer, then redirect (POST/redirect/GET) to the next card."""
+def form_card(store: CardStore, deck_id: int) -> Card:
+    """The posted card: 400 for a bad `card_id`, 404 for an unknown card or one of another deck."""
     card_id = request.form.get("card_id", type=int)
-    grade = request.form.get("grade", type=int)
     if card_id is None or not 0 < card_id <= MAX_ID:
-        abort(400)
-    if grade is None or not 0 <= grade <= MAX_GRADE:
         abort(400)
     card = store.get_card(card_id)
     if card is None or card.deck_id != deck_id:
         abort(404)
+    return card
+
+
+def form_given_answer() -> str | None:
+    """The typed answer (None when the form has none). 400 when it is too long."""
+    if "given_answer" not in request.form:
+        return None
+    given = form_text("given_answer").strip()
+    if len(given) > MAX_ANSWER_LEN:
+        abort(400)
+    return given
+
+
+def show_reveal(store: CardStore, deck: Deck) -> str | Response:
+    """Step two of the write flow: the typed answer next to the correct one, then the grade buttons.
+
+    Nothing is saved here, so refreshing this page is harmless. A card that is no longer due
+    (answered in another tab) goes back to the quiz.
+    """
+    card = form_card(store, deck.id)
+    given = form_given_answer()
+    mode = quiz_mode(request.form)
+    if not scheduler.is_due(card.state, today()):
+        return redirect(url_for("quiz", deck_id=deck.id, mode=mode), code=303)
+    return render_template(
+        "reveal.html",
+        deck=deck,
+        card=card,
+        given_answer=given or "",
+        mode=mode,
+        grades=GRADE_BUTTONS,
+    )
+
+
+def submit_grade(store: CardStore, deck_id: int) -> Response:
+    """Apply one grade, then redirect (POST/redirect/GET) to the next card in the same mode."""
+    grade = request.form.get("grade", type=int)
+    if grade is None or not 0 <= grade <= MAX_GRADE:
+        abort(400)
+    card = form_card(store, deck_id)
+    given = form_given_answer()
+    mode = quiz_mode(request.form)
     if scheduler.is_due(card.state, today()):  # a repeated submit finds the card not due: no-op
         new_state = scheduler.review(card.state, grade, today())
         # False: a parallel request reviewed the card first, so this one is dropped as well.
-        store.save_review(card_id, new_state, grade)
-    return redirect(url_for("quiz", deck_id=deck_id, prev=card_id), code=303)
+        store.save_review(card.id, new_state, grade, mode=mode, given_answer=given)
+    return redirect(url_for("quiz", deck_id=deck_id, mode=mode), code=303)
 
 
 def deck_new() -> str | Response:
