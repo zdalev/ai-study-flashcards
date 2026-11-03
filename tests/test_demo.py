@@ -320,3 +320,20 @@ def test_build_demo_script_without_a_key_prints_a_clean_error(monkeypatch, tmp_p
     assert captured.err.startswith("error: Claude API key missing")
     assert captured.out == ""
     assert not script.OUTPUT.exists()
+
+
+def test_load_demo_command_uses_flashcards_today_and_the_option_beats_it(
+    demo_file, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("FLASHCARDS_TODAY", "2027-03-04")
+    from_env, from_option = tmp_path / "env.db", tmp_path / "option.db"
+
+    main(["--db", str(from_env), "load-demo", str(demo_file)], DEPS)
+    main(["load-demo", str(demo_file), "--db", str(from_option), "--today", "2028-01-02"], DEPS)
+
+    for db, expected in ((from_env, "2027-03-04"), (from_option, "2028-01-02")):
+        conn = sqlite3.connect(db)
+        try:
+            assert {row[0] for row in conn.execute("SELECT due_date FROM cards")} == {expected}
+        finally:
+            conn.close()

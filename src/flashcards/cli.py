@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from flashcards import __version__
-from flashcards.config import load_settings
+from flashcards.config import Settings, load_settings
 from flashcards.errors import DemoDataError, ExportError, FlashcardsError
 from flashcards.export import export_csv
 from flashcards.models import CardDraft
@@ -48,19 +48,18 @@ def build_parser() -> argparse.ArgumentParser:
         prog="flashcards",
         description="Generate flashcards from notes with Claude and study them in the browser.",
     )
-    parser.add_argument("--db", type=Path, help="SQLite database file (default: from settings)")
-    parser.add_argument(
-        "--today",
-        type=date.fromisoformat,
-        metavar="YYYY-MM-DD",
-        help="pretend today is this date (demos and tests)",
-    )
+    _add_global_options(parser, default=None)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", metavar="<command>")
-    generate = commands.add_parser("generate", help="make flashcards from a notes file with Claude")
+    shared = [_global_options_parent()]
+    generate = commands.add_parser(
+        "generate", help="make flashcards from a notes file with Claude", parents=shared
+    )
     generate.add_argument("notes", type=Path, metavar="NOTES", help="notes file (.txt, .md)")
     generate.add_argument("--deck", help="deck name (default: the file name without extension)")
-    load = commands.add_parser("load-demo", help="load the demo decks (no API key needed)")
+    load = commands.add_parser(
+        "load-demo", help="load the demo decks (no API key needed)", parents=shared
+    )
     load.add_argument(
         "json_file",
         nargs="?",
@@ -69,14 +68,18 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="JSON",
         help=f"demo deck file (default: {DEFAULT_DEMO_FILE.as_posix()}, relative to the cwd)",
     )
-    export = commands.add_parser("export", help="write all cards (or one deck) to a CSV file")
+    export = commands.add_parser(
+        "export", help="write all cards (or one deck) to a CSV file", parents=shared
+    )
     export.add_argument(
         "out",
         metavar="OUT.csv",
         help=f"CSV file to write (overwritten if it exists), or {STDOUT_NAME} for standard output",
     )
     export.add_argument("--deck", help="export only this deck (default: all decks)")
-    serve = commands.add_parser("serve", help="start the web app (study in the browser)")
+    serve = commands.add_parser(
+        "serve", help="start the web app (study in the browser)", parents=shared
+    )
     serve.add_argument(
         "--host", default=DEFAULT_HOST, help=f"address to listen on (default: {DEFAULT_HOST})"
     )
@@ -87,6 +90,30 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"port to listen on (default: {DEFAULT_PORT})",
     )
     return parser
+
+
+def _global_options_parent() -> argparse.ArgumentParser:
+    parent = argparse.ArgumentParser(add_help=False)
+    _add_global_options(parent, default=argparse.SUPPRESS)
+    return parent
+
+
+def _add_global_options(parser: argparse.ArgumentParser, default: Any) -> None:
+    """Add --db and --today.
+
+    The subcommands get them too, with a SUPPRESS default, so both `flashcards --db x.db generate`
+    and `flashcards generate --db x.db` work and a subcommand never overwrites the top-level value.
+    """
+    parser.add_argument(
+        "--db", type=Path, default=default, help="SQLite database file (default: from settings)"
+    )
+    parser.add_argument(
+        "--today",
+        type=date.fromisoformat,
+        default=default,
+        metavar="YYYY-MM-DD",
+        help="pretend today is this date (demos and tests; default: FLASHCARDS_TODAY or real date)",
+    )
 
 
 def _port(text: str) -> int:
@@ -122,9 +149,14 @@ def _run(args: argparse.Namespace, parser: argparse.ArgumentParser, deps: Deps) 
     return _COMMANDS[args.command](args, deps)
 
 
+def _today(args: argparse.Namespace, settings: Settings, deps: Deps) -> date:
+    """--today beats FLASHCARDS_TODAY, which beats the real date."""
+    return args.today or settings.today or deps.today()
+
+
 def _cmd_generate(args: argparse.Namespace, deps: Deps) -> int:
     settings = load_settings()
-    today = args.today or deps.today()
+    today = _today(args, settings, deps)
 
     card_source = _lazy_claude_source(deps.client_factory, settings.api_key, settings.model)
     with CardStore(open_db(args.db or settings.db_path)) as store:
@@ -146,7 +178,7 @@ def _cmd_load_demo(args: argparse.Namespace, deps: Deps) -> int:
     data = _read_demo_json(args.json_file)
     settings = load_settings()
     with CardStore(open_db(args.db or settings.db_path)) as store:
-        added = load_demo(store, data, args.today or deps.today(), deps.now())
+        added = load_demo(store, data, _today(args, settings, deps), deps.now())
     decks = len(data["decks"])  # load_demo has checked the shape
     print(f"Loaded {count_noun(added, 'card')} into {count_noun(decks, 'deck')}")
     return 0
