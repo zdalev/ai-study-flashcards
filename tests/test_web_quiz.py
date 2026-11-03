@@ -140,7 +140,7 @@ def test_get_does_not_change_the_database(client, seed, db_path):
 # --- POST: the answer step ---
 
 
-def test_answer_step_shows_both_answers_and_the_three_grade_buttons(client, seed):
+def test_answer_step_shows_both_answers_and_the_four_grade_buttons(client, seed):
     deck_id = seed("Biology", questions=("What is DNA?",))
     response = answer_step(client, deck_id, 1, "A molecule")
     body = text(response)
@@ -150,7 +150,12 @@ def test_answer_step_shows_both_answers_and_the_three_grade_buttons(client, seed
     assert body.index("Correct answer") < body.index("Answer to What is DNA?")
     assert "How did you do?" in body
     buttons = re.findall(r'<button[^>]*name="grade"[^>]*value="(\d)"[^>]*>([^<]*)</button>', body)
-    assert buttons == [("0", "No idea"), ("1", "Wrong"), ("4", "Correct")]
+    assert buttons == [
+        ("0", "Do not know"),
+        ("1", "Wrong"),
+        ("3", "Partially correct"),
+        ("4", "Correct"),
+    ]
     for old_label in ("Blackout", "Wrong but familiar", "Hard", "Good", "Perfect"):
         assert old_label not in body
     assert body.count('method="post"') == 1
@@ -273,7 +278,31 @@ def test_post_wrong_resets_repetitions_and_lowers_ease(client, seed, db_path):
     assert review_rows(db_path) == [(1, WEB_TODAY.isoformat(), 1, "write", None)]
 
 
-def test_post_no_idea_is_grade_0(client, seed, db_path):
+def test_post_partially_correct_is_grade_3_with_a_lower_ease(client, seed, db_path):
+    deck_id = seed("Biology", questions=("A?",))
+    assert post(client, deck_id, 1, 3).status_code == 303
+    state = card_row(db_path, 1).state
+    assert (state.repetitions, state.interval_days) == (1, 1)
+    assert state.due_date == TOMORROW
+    assert state.ease_factor == 2.36
+    assert review_rows(db_path) == [(1, WEB_TODAY.isoformat(), 3, "write", None)]
+
+
+def test_the_old_grade_labels_appear_on_no_page(client, seed):
+    deck_id = seed("Biology", questions=("A?",))
+    pages = [
+        text(client.get("/")),
+        text(client.get(quiz_url(deck_id))),
+        text(answer_step(client, deck_id, 1, "x")),
+        text(client.get(f"/decks/{deck_id}/stats")),
+        text(client.get("/stats")),
+    ]
+    for page in pages:
+        for old in ("No idea", "I don't know", "I don&#39;t know"):
+            assert old not in page
+
+
+def test_post_do_not_know_is_grade_0(client, seed, db_path):
     deck_id = seed("Biology", questions=("A?",))
     assert post(client, deck_id, 1, 0).status_code == 303
     assert card_row(db_path, 1).state.ease_factor == 1.7

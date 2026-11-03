@@ -13,7 +13,7 @@
   {% endif %}
   <p class="label">Correct answer</p>
   <p class="answer">{{ card.answer }}</p>
-  <p class="result {{ 'result-correct' if correct else 'result-miss' }}">{{ result }}</p>
+  <p class="result {{ result_class }}">{{ result }}</p>
   <p><a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Next card</a></p>
 </section>
 <p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
