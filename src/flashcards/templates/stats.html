@@ -31,7 +31,7 @@
 {% if deck %}
 <h2 class="section-title">Recent answers</h2>
 {% if history %}
-<div class="table-wrap">
+<div class="table-wrap history-scroll">
 <table class="history">
   <thead>
     <tr><th>Date</th><th>Mode</th><th>Question</th><th>Your answer</th><th>Correct answer</th><th>Result</th></tr>
@@ -41,9 +41,9 @@
     <tr>
       <td class="nowrap muted-cell">{{ row.date }}</td>
       <td class="nowrap muted-cell">{{ row.mode }}</td>
-      <td>{{ row.question }}</td>
-      <td>{{ row.given_answer }}</td>
-      <td>{{ row.correct_answer }}</td>
+      <td><div class="clamp" title="{{ row.question }}">{{ row.question }}</div></td>
+      <td><div class="clamp" title="{{ row.given_answer }}">{{ row.given_answer }}</div></td>
+      <td><div class="clamp" title="{{ row.correct_answer }}">{{ row.correct_answer }}</div></td>
       <td class="nowrap"><span class="pill {{ row.result_class }}">{{ row.result }}</span></td>
     </tr>
     {% endfor %}
