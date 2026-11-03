@@ -1,4 +1,6 @@
 import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -68,6 +70,31 @@ class TestOpenDb:
     def test_reopening_does_not_reapply_the_schema(self, db_path):
         open_db(db_path).close()
         open_db(db_path).close()  # would fail with "table decks already exists"
+
+    def test_parallel_first_opens_of_a_new_file_all_succeed(self, db_path):
+        count = 16
+        barrier = threading.Barrier(count)
+
+        def first_open(_):
+            barrier.wait()  # every thread sees user_version 0 and tries to create the schema
+            open_db(db_path).close()
+
+        for _ in range(5):  # a fresh file each round makes the race likely
+            db_path.unlink(missing_ok=True)
+            with ThreadPoolExecutor(max_workers=count) as pool:
+                list(pool.map(first_open, range(count)))  # re-raises any StorageError
+            conn = sqlite3.connect(db_path)
+            try:
+                tables = [
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decks'"
+                    )
+                ]
+                assert tables == ["decks"]
+                assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+            finally:
+                conn.close()
 
     def test_rows_come_back_by_name(self, db_path):
         conn = open_db(db_path)

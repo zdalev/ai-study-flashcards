@@ -11,6 +11,7 @@
     <tr><th scope="row">Next due</th><td>{{ next_due }}</td></tr>
   </tbody>
 </table>
-<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats for this subject</a> &middot;
+<p><a href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a> &middot;
+  <a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats for this subject</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}

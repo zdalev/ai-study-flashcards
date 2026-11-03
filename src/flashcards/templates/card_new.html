@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Add card: {{ deck.name }}{% endblock %}
+{% block content %}
+<h1>Add card: {{ deck.name }}</h1>
+{% if added %}
+<p class="notice" role="status">Card added - add another or
+  <a href="{{ url_for('quiz', deck_id=deck.id) }}">start studying</a>.</p>
+{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form class="form" method="post" action="{{ url_for('card_new', deck_id=deck.id) }}">
+  <label for="question">Question</label>
+  <textarea id="question" name="question" rows="3" maxlength="{{ max_question }}" required autofocus>{{ question }}</textarea>
+  <label for="answer">Answer</label>
+  <textarea id="answer" name="answer" rows="6" maxlength="{{ max_answer }}" required>{{ answer }}</textarea>
+  <button type="submit" class="button">Add card</button>
+</form>
+<p><a href="{{ url_for('quiz', deck_id=deck.id) }}">Study this subject</a> &middot;
+  <a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+  <a href="{{ url_for('home') }}">Back to subjects</a></p>
+{% endblock %}

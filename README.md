@@ -7,7 +7,8 @@ repetition.
   and stores the question/answer cards it gets back (as structured JSON) in a local SQLite
   database. One notes file becomes one deck (subject).
 - `flashcards serve` starts a small Flask web app: pick a subject, answer the cards that are due,
-  grade yourself 0-5, and the SM-2 scheduler decides when each card comes back.
+  grade yourself 0-5, and the SM-2 scheduler decides when each card comes back. You can also add
+  your own subjects and cards by hand in the browser.
 - Five sample subjects are included: **biology, english, mathematics, physics, programming**
   (`examples/`), plus a ready-made demo deck so you can try the app **without an API key**.
 
@@ -28,6 +29,20 @@ flashcards serve
 Open <http://127.0.0.1:5000>, choose a subject and click **Study**. Stop the server with Ctrl+C.
 
 `load-demo` can be run again safely: cards that already exist are not added twice.
+
+## Add your own cards
+
+No notes file or API key is needed to write cards yourself. On the home page click **New subject**
+and type a name (or click **Add card** next to an existing subject), then fill in the question and
+the answer and click **Add card**. The new card is due today, so it shows up in the quiz straight
+away, and the form stays open so you can add another.
+
+- A question and an answer are both required (at most 500 and 2000 characters). A subject name is at
+  most 100 characters.
+- A question that is already in the subject (ignoring case and extra spaces) is not added twice; the
+  page says so and keeps what you typed.
+- A subject name that already exists takes you to that subject's form instead of making a second one.
+- There is no way to edit or delete a card in the app.
 
 ## Generate your own deck (needs a Claude API key)
 
@@ -58,7 +73,9 @@ It overwrites the file; skim the cards before committing it.
 
 | Page | URL | What it shows |
 |---|---|---|
-| Home | `/` | All subjects with their card count and how many cards are due today, each with **Study** and **Stats** links. An empty database shows a hint to run `flashcards load-demo`. |
+| Home | `/` | All subjects with their card count and how many cards are due today, each with **Study**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
+| New subject | `/decks/new` | A form with a subject name. Creates the subject (or reuses one with the same name) and opens its Add card form. |
+| Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. Linked from the home, stats and done pages. |
 | Quiz | `/decks/<id>/quiz` | The next due card (most overdue first) and the number of cards due. **Show answer** reveals the answer and the grade buttons **0 Blackout, 1 Wrong, 2 Wrong but familiar, 3 Hard, 4 Good, 5 Perfect**. After grading, the next card appears with a note when the previous one is due again. |
 | Done | (same URL) | Shown when nothing is due in the subject: cards reviewed today, accuracy today and the next due date. |
 | Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date. |
@@ -124,7 +141,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 460 tests, about 2 seconds
+pytest            # 529 tests, about 2 seconds
 ruff check .
 ```
 
@@ -136,7 +153,7 @@ pages are tested with Flask's test client against a temporary database and a fix
 
 - A local study tool for one person, not a hosted service.
 - `flashcards serve` uses Flask's development server and listens on `127.0.0.1` only by default (`--host` can change it).
-- No login and no CSRF protection.
+- No login and no CSRF protection. Cards you add by hand cannot be edited or deleted in the app.
 - Duplicate cards are detected by question text within a deck (spaces normalised,
   case-insensitive for ASCII letters only, via SQLite `NOCASE`); reworded questions are kept as
   separate cards.

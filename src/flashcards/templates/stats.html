@@ -18,6 +18,7 @@
 </table>
 <p>
   {% if deck %}<a href="{{ url_for('quiz', deck_id=deck.id) }}">Study this subject</a> &middot;
+  <a href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a> &middot;
   <a href="{{ url_for('all_stats') }}">All subjects stats</a> &middot;{% endif %}
   <a href="{{ url_for('home') }}">Back to subjects</a>
 </p>
