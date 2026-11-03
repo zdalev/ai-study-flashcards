@@ -379,9 +379,24 @@ def test_empty_home_links_to_new_subject(client):
     assert 'href="/decks/new"' in body
 
 
-def test_stats_page_links_to_add_card(client, seed):
+def test_add_card_and_all_stats_links_are_only_on_the_home_page(client, seed):
     deck_id = seed("Biology")
-    assert f'href="{card_url(deck_id)}"' in text(client.get(f"/decks/{deck_id}/stats"))
+    home = text(client.get("/"))
+    assert f'href="{card_url(deck_id)}"' in home and 'href="/stats"' in home
+    pages = [
+        f"/decks/{deck_id}/stats",
+        "/stats",
+        f"/decks/{deck_id}/quiz?mode=write",
+        f"/decks/{deck_id}/quiz?mode=choice",
+        f"/decks/{deck_id}/delete",
+        "/decks/new",
+        "/nothing-here",
+    ]
+    for path in pages:
+        body = text(client.get(path))
+        assert f'href="{card_url(deck_id)}"' not in body, path
+        assert 'href="/stats"' not in body, path
+        assert "All flashcards stats" not in body and "All stats" not in body, path
 
 
 def test_all_stats_page_has_no_add_card_link(client, seed):
@@ -389,10 +404,11 @@ def test_all_stats_page_has_no_add_card_link(client, seed):
     assert "Add card" not in text(client.get("/stats"))
 
 
-def test_done_page_links_to_add_card(client, seed):
+def test_done_page_has_no_add_card_link(client, seed):
     deck_id = seed("Biology", questions=())
-    assert "No cards are due" in text(client.get(f"/decks/{deck_id}/quiz"))
-    assert f'href="{card_url(deck_id)}"' in text(client.get(f"/decks/{deck_id}/quiz"))
+    body = text(client.get(f"/decks/{deck_id}/quiz"))
+    assert "No cards are due" in body
+    assert f'href="{card_url(deck_id)}"' not in body
 
 
 def test_adding_a_card_to_a_done_deck_makes_it_studyable_again(client, seed):

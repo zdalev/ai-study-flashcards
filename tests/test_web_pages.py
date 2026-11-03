@@ -253,7 +253,7 @@ def test_unknown_pages_and_ids_give_the_404_page(client, seed, path):
     response = client.get(path)
     assert response.status_code == 404
     assert "Page not found" in text(response)
-    assert 'href="/stats"' in text(response)  # the page still extends the base template
+    assert 'class="site-header"' in text(response)  # the page still extends the base template
 
 
 def test_the_largest_valid_id_is_handled_without_error(client):
