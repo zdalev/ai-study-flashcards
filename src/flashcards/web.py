@@ -378,10 +378,10 @@ def create_deck() -> str | tuple[str, int] | Response:
     """Create the subject (or reuse the one with the same name) and go to its add-card form."""
     name = form_text("name")
     if not name.strip():
-        return render_deck_form(name, "Please enter a subject name.", 400)
+        return render_deck_form(name, "Please enter a name.", 400)
     if len(name.strip()) > MAX_DECK_NAME_LEN:
         return render_deck_form(
-            name, f"The subject name is too long (at most {MAX_DECK_NAME_LEN} characters).", 400
+            name, f"The name is too long (at most {MAX_DECK_NAME_LEN} characters).", 400
         )
     deck = get_store().get_or_create_deck(name, None, datetime.now())
     return redirect(url_for("card_new", deck_id=deck.id), code=303)

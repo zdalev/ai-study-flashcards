@@ -198,7 +198,7 @@ def test_all_stats_cover_every_deck_and_a_deck_page_only_its_own(client, db_path
 def test_stats_titles_name_the_subject(client, seed):
     deck_id = seed("Biology")
     assert "Stats: Biology" in text(client.get(f"/decks/{deck_id}/stats"))
-    assert "Stats: All subjects" in text(client.get("/stats"))
+    assert "Stats: All flashcards" in text(client.get("/stats"))
 
 
 def test_stats_pages_escape_the_deck_name(client, seed):
@@ -408,3 +408,42 @@ def test_serve_does_not_load_dotenv_into_the_environment(fake_run, tmp_path, mon
     main(["serve"])
     assert fake_run[0][1]["load_dotenv"] is False
     assert "ANTHROPIC_API_KEY" not in os.environ
+
+
+def test_no_page_calls_a_deck_a_subject(client, seed):
+    """The app says "flashcards", never "subject", on any page (including error pages)."""
+    biology = seed("Biology", questions=("Q1?", "Q2?", "Q3?", "Q4?", "Q5?"))
+    short = seed("Chemistry")  # 3 cards: multiple choice falls back to write mode with a note
+    finished = seed("History", today=WEB_TODAY + timedelta(days=1))  # nothing due: done page
+    pages = {
+        "home": client.get("/"),
+        "home deleted notice": client.get("/?deleted=Biology"),
+        "new": client.get("/decks/new"),
+        "new blank name": client.post("/decks/new", data={"name": " "}),
+        "new too long name": client.post("/decks/new", data={"name": "N" * 500}),
+        "add card": client.get(f"/decks/{biology}/cards/new"),
+        "add card duplicate": client.post(
+            f"/decks/{biology}/cards/new", data={"question": "Q1?", "answer": "A"}
+        ),
+        "quiz write": client.get(f"/decks/{biology}/quiz?mode=write"),
+        "quiz choice": client.get(f"/decks/{biology}/quiz?mode=choice"),
+        "quiz choice fallback": client.get(f"/decks/{short}/quiz?mode=choice"),
+        "reveal": client.post(
+            f"/decks/{biology}/quiz",
+            data={"card_id": 1, "step": "answer", "given_answer": "guess"},
+        ),
+        "choice result": client.post(
+            f"/decks/{biology}/quiz",
+            data={"card_id": 1, "mode": "choice", "dont_know": "1"},
+            follow_redirects=True,
+        ),
+        "done": client.get(f"/decks/{finished}/quiz"),
+        "stats deck": client.get(f"/decks/{biology}/stats"),
+        "stats all": client.get("/stats"),
+        "delete confirm": client.get(f"/decks/{biology}/delete"),
+        "404": client.get("/decks/999/stats"),
+        "400": client.post(f"/decks/{biology}/quiz", data={"card_id": "x"}),
+    }
+    for name, response in pages.items():
+        assert response.status_code in (200, 400, 404, 409), name
+        assert "subject" not in text(response).lower(), name

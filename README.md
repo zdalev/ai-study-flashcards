@@ -5,12 +5,12 @@ repetition.
 
 - `flashcards generate` reads a `.txt` / `.md` notes file, sends it to the Claude API in chunks
   and stores the question/answer cards it gets back (as structured JSON) in a local SQLite
-  database. One notes file becomes one deck (subject).
-- `flashcards serve` starts a small Flask web app: pick a subject and study the cards that are due,
+  database. One notes file becomes one set of flashcards (a deck).
+- `flashcards serve` starts a small Flask web app: pick a set of flashcards and study the cards that are due,
   either by typing the answer or by choosing from four options. The SM-2 scheduler decides when
-  each card comes back, and the subject's stats page lists your recent answers. You can also add
-  your own subjects and cards by hand in the browser.
-- Five sample subjects are included: **biology, english, mathematics, physics, programming**
+  each card comes back, and the stats page of each set lists your recent answers. You can also add
+  your own flashcards by hand in the browser.
+- Five sample sets of flashcards are included: **biology, english, mathematics, physics, programming**
   (`examples/`), plus a ready-made demo deck so you can try the app **without an API key**.
 
 Requires Python 3.11 or newer.
@@ -27,29 +27,29 @@ flashcards load-demo               # loads examples/demo-cards.json into flashca
 flashcards serve
 ```
 
-Open <http://127.0.0.1:5000>, choose a subject and click **Study: Write** or **Study: Multiple choice**. Stop the server with Ctrl+C.
+Open <http://127.0.0.1:5000>, choose flashcards and click **Study: Write** or **Study: Multiple choice**. Stop the server with Ctrl+C.
 
 `load-demo` can be run again safely: cards that already exist are not added twice.
 
 ## Add your own cards
 
-No notes file or API key is needed to write cards yourself. On the home page click **New subject**
-and type a name (or click **Add card** next to an existing subject), then fill in the question and
+No notes file or API key is needed to write cards yourself. On the home page click **New flashcards**
+and type a name (or click **Add card** next to existing flashcards), then fill in the question and
 the answer and click **Add card**. The new card is due today, so it shows up in the quiz straight
 away, and the form stays open so you can add another. Click **Done** when you are finished to go back
 to the home page.
 
-- A question and an answer are both required (at most 500 and 2000 characters). A subject name is at
+- A question and an answer are both required (at most 500 and 2000 characters). A name is at
   most 100 characters.
-- A question that is already in the subject (ignoring case and extra spaces) is not added twice; the
+- A question that is already in the flashcards (ignoring case and extra spaces) is not added twice; the
   page says so and keeps what you typed.
-- A subject name that already exists takes you to that subject's form instead of making a second one.
-- There is no way to edit or delete a single card in the app. To remove a whole subject, see below.
+- A name that already exists takes you to that flashcards' add-card form instead of making a second set.
+- There is no way to edit or delete a single card in the app. To remove a whole set of flashcards, see below.
 
-## Delete a subject
+## Delete flashcards
 
-Open a subject's **Stats** page and click **Delete subject**. A confirmation page shows how many
-cards will go; confirming removes the subject with all its cards and their history (reviews and
+Open the **Stats** page of the flashcards and click **Delete flashcards**. A confirmation page shows how many
+cards will go; confirming removes the flashcards with all their cards and their history (reviews and
 the record of imported note chunks). This cannot be undone. The home page then shows a short notice.
 
 ## Generate your own deck (needs a Claude API key)
@@ -81,15 +81,15 @@ It overwrites the file; skim the cards before committing it.
 
 | Page | URL | What it shows |
 |---|---|---|
-| Home | `/` | All subjects with their card count and how many cards are due today, each with **Study: Write**, **Study: Multiple choice**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
-| New subject | `/decks/new` | A form with a subject name. Creates the subject (or reuses one with the same name) and opens its Add card form. |
+| Home | `/` | All flashcards with their card count and how many cards are due today, each with **Study: Write**, **Study: Multiple choice**, **Add card** and **Stats** links, and a **New flashcards** button. An empty database shows a hint to run `flashcards load-demo` or to create flashcards. |
+| New flashcards | `/decks/new` | A form with a name. Creates the flashcards (or reuses ones with the same name) and opens its Add card form. |
 | Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. A **Done** button next to **Add card** goes back to the home page. Linked from the home, stats and done pages. |
 | Quiz | `/decks/<id>/quiz?mode=write` | The next due card (most overdue first) and the number of cards due. **Write mode:** type your answer (it may be empty) and click **Save answer**; the page then shows your answer next to the correct one and you grade yourself with **Do not know**, **Wrong**, **Partially correct** or **Correct**. |
-| Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards of the same subject, in an order that stays the same when you refresh) and a **Do not know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **Do not know**, with a **Next card** link. A subject with fewer than four different answers uses write mode instead, with a short note. |
-| Done | (same URL) | Shown when nothing is due in the subject: cards reviewed today, accuracy today and the next due date. |
-| Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date, and a **Recent answers** table with the last 20 answers (date, mode, question, your answer, correct answer, result; older answers saved before this table existed show `-`). |
-| Delete subject | `/decks/<id>/delete` | A confirmation page ("Delete <name>? This removes N cards and their history."). **Delete subject** (POST) removes the subject, its cards, chunk records and reviews and returns to the home page with a notice; **Cancel** goes back to the stats page. A GET never deletes. Linked from the subject's stats page only. |
-| All stats | `/stats` | The same figures for all subjects together. |
+| Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards in the same flashcards, in an order that stays the same when you refresh) and a **Do not know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **Do not know**, with a **Next card** link. Flashcards with fewer than four different answers uses write mode instead, with a short note. |
+| Done | (same URL) | Shown when nothing is due in the flashcards: cards reviewed today, accuracy today and the next due date. |
+| Stats | `/decks/<id>/stats` | One set of flashcards: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date, and a **Recent answers** table with the last 20 answers (date, mode, question, your answer, correct answer, result; older answers saved before this table existed show `-`). |
+| Delete flashcards | `/decks/<id>/delete` | A confirmation page ("Delete <name>? This removes N cards and their history."). **Delete flashcards** (POST) removes the flashcards, their cards, chunk records and reviews and returns to the home page with a notice; **Cancel** goes back to the stats page. A GET never deletes. Linked from the stats page of the flashcards only. |
+| All stats | `/stats` | The same figures for all flashcards together. |
 
 The write-mode buttons are saved as SM-2 grades: **Do not know** = 0, **Wrong** = 1, **Partially
 correct** = 2 and **Correct** = 4. A correct answer keeps the ease factor, so the intervals go
@@ -174,7 +174,7 @@ pages are tested with Flask's test client against a temporary database and a fix
 - Duplicate cards are detected by question text within a deck (spaces normalised,
   case-insensitive for ASCII letters only, via SQLite `NOCASE`); reworded questions are kept as
   separate cards.
-- One deck per notes file: to add more notes to a subject, run `generate` with the same `--deck`
+- One deck per notes file: to add more notes to existing flashcards, run `generate` with the same `--deck`
   name.
 
 ## Screenshots
