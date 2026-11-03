@@ -808,3 +808,60 @@ class TestStoreLifecycle:
         store._conn.execute("DROP TABLE cards")
         with pytest.raises(StorageError, match="database error"):
             store.get_card(1)
+
+
+class TestDeleteDeck:
+    def seeded(self, store, deck):
+        other = store.get_or_create_deck("Chemistry", None, NOW)
+        for target, digest in ((deck, "d1"), (other, "d2")):
+            store.add_cards(
+                target.id, [draft("A?", "a"), draft("B?", "b")], TODAY, NOW, chunk_digest=digest
+            )
+            for card in store.cards_with_deck_names(target.id):
+                review_card(store, card[1].id, 4, TODAY)
+        return other
+
+    def count(self, store, table):
+        return store._conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+
+    def test_removes_deck_cards_chunks_and_reviews(self, store, deck):
+        other = self.seeded(store, deck)
+        assert store.delete_deck(deck.id) is True
+        assert store.get_deck(deck.id) is None
+        assert store.cards_with_deck_names(deck.id) == []
+        assert store.has_chunk(deck.id, "d1") is False
+        assert store.recent_answers(deck.id) == []
+        assert (self.count(store, "cards"), self.count(store, "chunks")) == (2, 1)
+        assert self.count(store, "reviews") == 2
+        assert store.get_deck(other.id) == other
+        assert store.has_chunk(other.id, "d2") is True
+
+    def test_deletes_children_even_without_foreign_keys(self, store, deck):
+        self.seeded(store, deck)
+        store._conn.execute("PRAGMA foreign_keys = OFF")
+        assert store.delete_deck(deck.id) is True
+        assert self.count(store, "cards") == 2
+        assert self.count(store, "reviews") == 2
+        assert self.count(store, "chunks") == 1
+
+    def test_unknown_or_already_deleted_deck_returns_false(self, store, deck):
+        self.seeded(store, deck)
+        assert store.delete_deck(deck.id + 99) is False
+        assert self.count(store, "cards") == 4
+        assert store.delete_deck(deck.id) is True
+        assert store.delete_deck(deck.id) is False
+
+    def test_name_can_be_reused_after_delete(self, store, deck):
+        add(store, deck, "A?")
+        store.delete_deck(deck.id)
+        again = store.get_or_create_deck("Biology", None, NOW)
+        assert add(store, again, "A?") == 1
+
+    def test_storage_error_leaves_everything_in_place(self, store, deck):
+        self.seeded(store, deck)
+        store._conn.execute("DROP TABLE chunks")
+        with pytest.raises(StorageError, match="deleting a deck"):
+            store.delete_deck(deck.id)
+        assert store.get_deck(deck.id) is not None
+        assert self.count(store, "cards") == 4
+        assert self.count(store, "reviews") == 4

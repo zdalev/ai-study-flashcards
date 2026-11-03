@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ deck.name }}{% endblock %}
+{% block content %}
+<section class="card confirm-card">
+  <h1>Delete {{ deck.name }}?</h1>
+  <p>This removes {{ card_count }} {{ "card" if card_count == 1 else "cards" }} and their history. This cannot be undone.</p>
+  <form method="post" action="{{ url_for('deck_delete', deck_id=deck.id) }}">
+    <div class="page-actions">
+      <a class="button secondary" href="{{ url_for('deck_stats', deck_id=deck.id) }}">Cancel</a>
+      <button type="submit" class="button danger-solid">Delete subject</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
