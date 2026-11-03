@@ -196,3 +196,44 @@ code { background: #eceff3; padding: 0.1rem 0.35rem; border-radius: 4px; }
   .study-head { flex-direction: column; align-items: flex-start; }
   .study-card { padding: 1.1rem 1.1rem; }
 }
+
+/* stats page */
+.head-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.stats.tiles { border: 0; background: none; border-radius: 0; overflow: visible; margin-bottom: 1.5rem; }
+.stats.tiles tbody { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+.stats.tiles .tile-wide { grid-column: span 2; }
+.stats.tiles tr {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem 1rem;
+  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.05);
+}
+.stats.tiles th, .stats.tiles td { padding: 0; border: 0; width: auto; }
+.stats.tiles th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.stats.tiles td { font-size: 1.35rem; font-weight: 700; white-space: nowrap; }
+.stats.tiles .tile-main { grid-column: span 2; background: #f2f6fe; border-color: #c9d7f5; }
+.stats.tiles .tile-main td { font-size: 1.8rem; color: var(--accent); }
+.stats.tiles .tile-due td { color: var(--due); }
+.section-title { font-size: 1.15rem; }
+.table-wrap {
+  overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: 1.25rem;
+}
+.table-wrap .history { border: 0; margin: 0; }
+.history th { background: #f3f5f8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.history { min-width: 42rem; }
+.history th, .history td { padding: 0.55rem 0.75rem; overflow-wrap: break-word; word-break: normal; }
+.history th { white-space: nowrap; }
+.history tbody tr:nth-child(even) { background: #fafbfc; }
+.history tbody tr:last-child td { border-bottom: 0; }
+.history .nowrap { white-space: nowrap; overflow-wrap: normal; }
+.history .muted-cell { color: var(--muted); }
+.pill { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.pill.result-correct { background: #e6f4ea; }
+.pill.result-partial { background: #fdf0e1; }
+.pill.result-miss { background: #fdecea; }
+@media (max-width: 34rem) {
+  .stats.tiles tbody { grid-template-columns: 1fr 1fr; }
+  .stats.tiles .tile-wide { grid-column: span 1; }
+  .stats.tiles .tile-main td { font-size: 1.35rem; }
+  .stats.tiles td { font-size: 1.15rem; }
+}
