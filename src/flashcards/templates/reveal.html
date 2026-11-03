@@ -1,18 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Study: {{ deck.name }}{% endblock %}
 {% block content %}
-<h1>Study: {{ deck.name }}</h1>
-<section class="card">
+<div class="study-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Write</p>
+    <h1>Study: {{ deck.name[:1]|upper }}{{ deck.name[1:] }}</h1>
+  </div>
+  
+</div>
+<section class="card study-card">
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>
-  <p class="label">Your answer</p>
-  {% if given_answer %}
-  <p class="answer">{{ given_answer }}</p>
-  {% else %}
-  <p class="answer muted">(no answer)</p>
-  {% endif %}
-  <p class="label">Correct answer</p>
-  <p class="answer">{{ card.answer }}</p>
+  <div class="compare">
+    <div class="compare-box">
+      <p class="label">Your answer</p>
+      {% if given_answer %}
+      <p class="answer">{{ given_answer }}</p>
+      {% else %}
+      <p class="answer muted">(no answer)</p>
+      {% endif %}
+    </div>
+    <div class="compare-box correct-box">
+      <p class="label">Correct answer</p>
+      <p class="answer">{{ card.answer }}</p>
+    </div>
+  </div>
   <form method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
     <input type="hidden" name="card_id" value="{{ card.id }}">
     <input type="hidden" name="given_answer" value="{{ given_answer }}">
@@ -20,11 +32,11 @@
     <h2>How did you do?</h2>
     <div class="grades">
       {% for value, label in grades %}
-      <button type="submit" name="grade" value="{{ value }}">{{ label }}</button>
+      <button type="submit" class="grade grade-{{ value }}" name="grade" value="{{ value }}">{{ label }}</button>
       {% endfor %}
     </div>
   </form>
 </section>
-<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+<p class="study-foot"><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}

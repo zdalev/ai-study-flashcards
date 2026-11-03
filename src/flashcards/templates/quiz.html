@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Study: {{ deck.name }}{% endblock %}
 {% block content %}
-<h1>Study: {{ deck.name }}</h1>
-<p class="muted">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</p>
+<div class="study-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Write</p>
+    <h1>Study: {{ deck.name[:1]|upper }}{{ deck.name[1:] }}</h1>
+  </div>
+  <span class="badge has-due">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</span>
+</div>
 {% if fallback %}
 <p class="notice">Multiple choice needs at least {{ choice_min_answers }} different answers in this subject,
   so this card uses write mode.</p>
 {% endif %}
-<section class="card">
+<section class="card study-card">
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>
   <form class="answer-form" method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
@@ -15,10 +20,11 @@
     <input type="hidden" name="mode" value="{{ mode }}">
     <input type="hidden" name="step" value="answer">
     <label for="given_answer">Your answer</label>
-    <textarea id="given_answer" name="given_answer" rows="5" maxlength="{{ max_answer }}" autofocus></textarea>
-    <button type="submit" class="button">Save answer</button>
+    <textarea id="given_answer" name="given_answer" rows="4" maxlength="{{ max_answer }}"
+      placeholder="Type what you remember - or leave it empty" autofocus></textarea>
+    <div class="form-actions"><button type="submit" class="button">Save answer</button></div>
   </form>
 </section>
-<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+<p class="study-foot"><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}
