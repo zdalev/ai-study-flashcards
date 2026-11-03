@@ -84,12 +84,13 @@ It overwrites the file; skim the cards before committing it.
 | All stats | `/stats` | The same figures for all subjects together. |
 
 The write-mode buttons are saved as SM-2 grades: **Do not know** = 0, **Wrong** = 1, **Partially
-correct** = 3 and **Correct** = 4. A correct answer keeps the ease factor, so the intervals go
-1, 6, 15, 38 ... days; a partially correct answer lowers the ease from 2.5 to 2.36, so the
-intervals go 1, 6, 13 ... days. Multiple choice gives three of these grades automatically: the
+correct** = 2 and **Correct** = 4. A correct answer keeps the ease factor, so the intervals go
+1, 6, 15, 38 ... days. A partially correct answer counts as a miss: the card comes back tomorrow
+and its ease drops from 2.5 to 2.18. Multiple choice gives three of these grades automatically: the
 right option is **Correct**, any other option **Wrong**, and the **Do not know** button **Do not know**. A grade of
-3 or more counts as a correct answer for accuracy. The **Recent answers** table shows grade 0 as
-Do not know, 1-2 as Wrong, 3 as Partially correct and 4-5 as Correct.
+3 or more counts as a correct answer for accuracy, so Partially correct counts as a miss. The
+**Recent answers** table shows grade 0 as Do not know, 1 as Wrong, 2 as Partially correct and 3-5
+as Correct.
 
 ## Commands
 
@@ -149,7 +150,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 640 tests, about 2 seconds
+pytest            # 641 tests, about 2 seconds
 ruff check .
 ```
 

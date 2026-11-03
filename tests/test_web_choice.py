@@ -537,8 +537,8 @@ def test_history_shows_both_modes_old_rows_and_every_result(client, db_path):
         assert f"<th>{heading}</th>" in body
     day = WEB_TODAY.isoformat()
     assert history_cells(body) == [  # newest first
-        [day, "Write", "Q5?", "(no answer)", "A5", "Wrong"],
-        [day, "-", "Q4?", "-", "A4", "Partially correct"],
+        [day, "Write", "Q5?", "(no answer)", "A5", "Partially correct"],
+        [day, "-", "Q4?", "-", "A4", "Correct"],
         [day, "Multiple choice", "Q3?", "(no answer)", "A3", "Do not know"],
         [day, "Multiple choice", "Q2?", "A5", "A2", "Wrong"],
         [day, "Write", "Q1?", "my text", "A1", "Correct"],
@@ -550,8 +550,8 @@ def test_history_shows_both_modes_old_rows_and_every_result(client, db_path):
     [
         (0, "Do not know"),
         (1, "Wrong"),
-        (2, "Wrong"),
-        (3, "Partially correct"),
+        (2, "Partially correct"),
+        (3, "Correct"),
         (4, "Correct"),
         (5, "Correct"),
     ],
@@ -660,6 +660,6 @@ def test_the_old_labels_appear_on_no_choice_page(client, db_path):
 def test_result_styles_give_partially_correct_its_own_class():
     from flashcards.web import result_class
 
-    assert result_class(3) == "result-partial"
-    assert {result_class(grade) for grade in (0, 1, 2)} == {"result-miss"}
-    assert {result_class(grade) for grade in (4, 5)} == {"result-correct"}
+    assert result_class(2) == "result-partial"
+    assert {result_class(grade) for grade in (0, 1)} == {"result-miss"}
+    assert {result_class(grade) for grade in (3, 4, 5)} == {"result-correct"}
