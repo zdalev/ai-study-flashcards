@@ -179,7 +179,33 @@ pages are tested with Flask's test client against a temporary database and a fix
 
 ## Screenshots
 
-Screenshots will be added.
+Taken from the demo flashcards (`flashcards load-demo`).
+
+**Home** - all flashcards with their due counts
+
+![Home page](screenshots/01-home.png)
+
+**Quiz, write mode** - type your answer, then compare it with the correct one and grade yourself
+
+![Write mode question](screenshots/02-quiz-write.png)
+![Write mode after Save answer](screenshots/03-quiz-write-answer.png)
+
+**Quiz, multiple choice** - four options, graded automatically
+
+![Multiple choice question](screenshots/04-quiz-multiple-choice.png)
+![Multiple choice result](screenshots/05-quiz-multiple-choice-result.png)
+
+**Stats** - accuracy, due counts and recent answers
+
+![Stats page](screenshots/06-stats.png)
+
+**Add card** - add your own cards by hand
+
+![Add card form](screenshots/07-add-card.png)
+
+**Tests** - the full suite and lint passing
+
+![Passing tests](screenshots/08-tests-passing.png)
 
 ## License
 
