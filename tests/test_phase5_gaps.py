@@ -2,7 +2,7 @@
 
 - answers that differ only in inner spacing or in Unicode form count as the same option;
 - the option order depends on the day (the seed is the card and the day), not only on the card;
-- the result line of the multiple choice result page is styled as a miss for Wrong and No idea;
+- the result line of the multiple choice result page is styled as a miss for Wrong and Do not know;
 - a version 1 file that was upgraded has the same `mode` CHECK as a new file;
 - a choice page answered after midnight, or after the subject got a new card, is graded on the
   option text it showed (the page posts the text, not an index into rebuilt options).
@@ -73,12 +73,12 @@ def test_the_result_line_is_styled_as_a_hit_only_for_correct(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
     right = text(choose(client, deck_id, 1, value_of(page, "A1")))
-    wrong_value = next(v for v, t in options_of(page) if t not in ("A2", "I don't know"))
+    wrong_value = next(v for v, t in options_of(page) if t not in ("A2", "Do not know"))
     wrong = text(choose(client, deck_id, 2, wrong_value))
     idk = text(dont_know(client, deck_id, 3))
     assert re.search(r'class="result result-correct">\s*Correct', right)
     assert re.search(r'class="result result-miss">\s*Wrong', wrong)
-    assert re.search(r'class="result result-miss">\s*No idea', idk)
+    assert re.search(r'class="result result-miss">\s*Do not know', idk)
 
 
 # --- schema parity between a new file and an upgraded one ---

@@ -30,7 +30,7 @@ def quiz_url(deck_id, mode="choice"):
 
 
 def options_of(response):
-    """[(posted value, option text)] of a choice page; the "I don't know" button is not included."""
+    """[(posted value, option text)] of a choice page; the "Do not know" button is not included."""
     return [
         (html.unescape(value), html.unescape(label))
         for value, label in OPTION.findall(text(response))
@@ -38,7 +38,7 @@ def options_of(response):
 
 
 def dont_know_button(response):
-    """[(posted value, label)] of the "I don't know" button (one entry on a choice page)."""
+    """[(posted value, label)] of the "Do not know" button (one entry on a choice page)."""
     return DONT_KNOW.findall(text(response))
 
 
@@ -52,7 +52,7 @@ def choose(client, deck_id, card_id, choice, **extra):
 
 
 def dont_know(client, deck_id, card_id, **extra):
-    """Click "I don't know"."""
+    """Click "Do not know"."""
     data = {"card_id": card_id, "mode": "choice", "dont_know": "1", **extra}
     return client.post(f"/decks/{deck_id}/quiz", data=data)
 
@@ -127,7 +127,7 @@ def history_cells(body):
 # --- the question page ---
 
 
-def test_choice_page_shows_the_question_four_options_and_i_dont_know(client, db_path):
+def test_choice_page_shows_the_question_four_options_and_do_not_know(client, db_path):
     deck_id = deck_of_five(db_path)
     response = client.get(quiz_url(deck_id))
     body = text(response)
@@ -135,7 +135,7 @@ def test_choice_page_shows_the_question_four_options_and_i_dont_know(client, db_
     assert "Q1?" in body
     options = options_of(response)
     assert len(options) == 4 and all(value == label for value, label in options)
-    assert dont_know_button(response) == [("1", "I don't know")]
+    assert dont_know_button(response) == [("1", "Do not know")]
     assert re.search(r'name="card_id" value="1"', body)
     assert re.search(r'name="mode" value="choice"', body)
     assert "<textarea" not in body and "Save answer" not in body
@@ -261,7 +261,7 @@ def test_a_wrong_option_saves_grade_1_and_the_chosen_text(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
     wrong_value, wrong_text = next(
-        (v, t) for v, t in options_of(page) if t not in ("A1", "I don't know")
+        (v, t) for v, t in options_of(page) if t not in ("A1", "Do not know")
     )
     assert choose(client, deck_id, 1, wrong_value).status_code == 200
     state = card_state(db_path, 1)
@@ -270,7 +270,7 @@ def test_a_wrong_option_saves_grade_1_and_the_chosen_text(client, db_path):
     assert reviews_of(db_path) == [(1, WEB_TODAY.isoformat(), 1, "choice", wrong_text)]
 
 
-def test_i_dont_know_saves_grade_0_and_an_empty_answer(client, db_path):
+def test_do_not_know_saves_grade_0_and_an_empty_answer(client, db_path):
     deck_id = deck_of_five(db_path)
     assert dont_know(client, deck_id, 1).status_code == 200
     state = card_state(db_path, 1)
@@ -283,7 +283,7 @@ def test_the_server_ignores_a_given_answer_and_grade_sent_with_a_choice(client, 
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
     wrong_value, wrong_text = next(
-        (v, t) for v, t in options_of(page) if t not in ("A1", "I don't know")
+        (v, t) for v, t in options_of(page) if t not in ("A1", "Do not know")
     )
     choose(client, deck_id, 1, wrong_value, grade="5", given_answer="A1")
     assert reviews_of(db_path) == [(1, WEB_TODAY.isoformat(), 1, "choice", wrong_text)]
@@ -318,17 +318,17 @@ def test_the_result_page_shows_choice_correct_answer_result_and_next_link(client
     assert 'name="choice"' not in body and "<form" not in body
 
 
-def test_the_result_page_for_a_wrong_option_and_for_i_dont_know(client, db_path):
+def test_the_result_page_for_a_wrong_option_and_for_do_not_know(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
     wrong_value, wrong_text = next(
-        (v, t) for v, t in options_of(page) if t not in ("A1", "I don't know")
+        (v, t) for v, t in options_of(page) if t not in ("A1", "Do not know")
     )
     wrong = text(choose(client, deck_id, 1, wrong_value))
     assert re.search(r">\s*Wrong\s*</p>", wrong)
     assert wrong_text in wrong and "A1" in wrong
     idk = text(dont_know(client, deck_id, 2))
-    assert re.search(r">\s*No idea\s*</p>", idk)
+    assert re.search(r">\s*Do not know\s*</p>", idk)
     assert "(no answer)" in idk and "A2" in idk
 
 
@@ -468,7 +468,7 @@ def test_answers_that_differ_only_in_case_or_spacing_are_accepted(client, db_pat
     assert [row[2:] for row in reviews_of(db_path)] == [(4, "choice", "A1"), (1, "choice", "A5")]
 
 
-def test_a_choice_and_i_dont_know_together_count_as_i_dont_know(client, db_path):
+def test_a_choice_and_do_not_know_together_count_as_do_not_know(client, db_path):
     deck_id = deck_of_five(db_path)
     choose(client, deck_id, 1, "A1", dont_know="1")
     assert [row[2:] for row in reviews_of(db_path)] == [(0, "choice", "")]
@@ -538,8 +538,8 @@ def test_history_shows_both_modes_old_rows_and_every_result(client, db_path):
     day = WEB_TODAY.isoformat()
     assert history_cells(body) == [  # newest first
         [day, "Write", "Q5?", "(no answer)", "A5", "Wrong"],
-        [day, "-", "Q4?", "-", "A4", "Correct"],
-        [day, "Multiple choice", "Q3?", "(no answer)", "A3", "No idea"],
+        [day, "-", "Q4?", "-", "A4", "Partially correct"],
+        [day, "Multiple choice", "Q3?", "(no answer)", "A3", "Do not know"],
         [day, "Multiple choice", "Q2?", "A5", "A2", "Wrong"],
         [day, "Write", "Q1?", "my text", "A1", "Correct"],
     ]
@@ -547,7 +547,14 @@ def test_history_shows_both_modes_old_rows_and_every_result(client, db_path):
 
 @pytest.mark.parametrize(
     ("grade", "label"),
-    [(0, "No idea"), (1, "Wrong"), (2, "Wrong"), (3, "Correct"), (4, "Correct"), (5, "Correct")],
+    [
+        (0, "Do not know"),
+        (1, "Wrong"),
+        (2, "Wrong"),
+        (3, "Partially correct"),
+        (4, "Correct"),
+        (5, "Correct"),
+    ],
 )
 def test_history_maps_every_grade_to_a_result(client, db_path, grade, label):
     deck_id = deck_of_five(db_path)
@@ -622,10 +629,10 @@ def test_accuracy_counts_choice_reviews_with_grade_4_as_correct(client, db_path)
     page = client.get(quiz_url(deck_id))
     choose(client, deck_id, 1, value_of(page, "A1"))  # correct
     wrong_value = next(
-        v for v, t in options_of(client.get(quiz_url(deck_id))) if t not in ("A2", "I don't know")
+        v for v, t in options_of(client.get(quiz_url(deck_id))) if t not in ("A2", "Do not know")
     )
     choose(client, deck_id, 2, wrong_value)  # wrong
-    dont_know(client, deck_id, 3)  # no idea
+    dont_know(client, deck_id, 3)  # do not know
     log_review(db_path, 4, 4, mode="write", given="ok")  # a write review counts too
     body = text(client.get(f"/decks/{deck_id}/stats"))
     assert "50% (2/4)" in body
@@ -635,3 +642,24 @@ def test_accuracy_counts_choice_reviews_with_grade_4_as_correct(client, db_path)
         "Multiple choice",
         "Multiple choice",
     ]
+
+
+def test_the_old_labels_appear_on_no_choice_page(client, db_path):
+    deck_id = deck_of_five(db_path)
+    pages = [
+        text(client.get(quiz_url(deck_id))),
+        text(dont_know(client, deck_id, 1)),
+        text(choose(client, deck_id, 2, "A2")),
+        text(client.get(f"/decks/{deck_id}/stats")),
+    ]
+    for page in pages:
+        for old in ("No idea", "I don't know", "I don&#39;t know"):
+            assert old not in page
+
+
+def test_result_styles_give_partially_correct_its_own_class():
+    from flashcards.web import result_class
+
+    assert result_class(3) == "result-partial"
+    assert {result_class(grade) for grade in (0, 1, 2)} == {"result-miss"}
+    assert {result_class(grade) for grade in (4, 5)} == {"result-correct"}

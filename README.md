@@ -77,16 +77,19 @@ It overwrites the file; skim the cards before committing it.
 | Home | `/` | All subjects with their card count and how many cards are due today, each with **Study: Write**, **Study: Multiple choice**, **Add card** and **Stats** links, and a **New subject** button. An empty database shows a hint to run `flashcards load-demo` or to create a subject. |
 | New subject | `/decks/new` | A form with a subject name. Creates the subject (or reuses one with the same name) and opens its Add card form. |
 | Add card | `/decks/<id>/cards/new` | A form with a question and an answer. The card is due today. After saving, the form opens again with a "Card added" note. Linked from the home, stats and done pages. |
-| Quiz | `/decks/<id>/quiz?mode=write` | The next due card (most overdue first) and the number of cards due. **Write mode:** type your answer (it may be empty) and click **Save answer**; the page then shows your answer next to the correct one and you grade yourself with **No idea**, **Wrong** or **Correct**. |
-| Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards of the same subject, in an order that stays the same when you refresh) and an **I don't know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **No idea**, with a **Next card** link. A subject with fewer than four different answers uses write mode instead, with a short note. |
+| Quiz | `/decks/<id>/quiz?mode=write` | The next due card (most overdue first) and the number of cards due. **Write mode:** type your answer (it may be empty) and click **Save answer**; the page then shows your answer next to the correct one and you grade yourself with **Do not know**, **Wrong**, **Partially correct** or **Correct**. |
+| Quiz, multiple choice | `/decks/<id>/quiz?mode=choice` | The question with four options (the correct answer and three different answers from other cards of the same subject, in an order that stays the same when you refresh) and a **Do not know** button. The answer is graded automatically and saved straight away; the result page shows your choice, the correct answer and **Correct**, **Wrong** or **Do not know**, with a **Next card** link. A subject with fewer than four different answers uses write mode instead, with a short note. |
 | Done | (same URL) | Shown when nothing is due in the subject: cards reviewed today, accuracy today and the next due date. |
 | Stats | `/decks/<id>/stats` | One subject: accuracy today and all time, cards, due today, reviewed today, mature cards (interval of 21 days or more), new cards, average ease, next due date, and a **Recent answers** table with the last 20 answers (date, mode, question, your answer, correct answer, result; older answers saved before this table existed show `-`). |
 | All stats | `/stats` | The same figures for all subjects together. |
 
-The three buttons are saved as SM-2 grades: **No idea** = 0, **Wrong** = 1 and **Correct** = 4 (a
-correct answer keeps the ease factor, so the intervals go 1, 6, 15, 38 ... days). Multiple choice
-gives the same grades automatically: the right option is **Correct**, any other option **Wrong**,
-**I don't know** **No idea**. A grade of 3 or more counts as a correct answer for accuracy.
+The write-mode buttons are saved as SM-2 grades: **Do not know** = 0, **Wrong** = 1, **Partially
+correct** = 3 and **Correct** = 4. A correct answer keeps the ease factor, so the intervals go
+1, 6, 15, 38 ... days; a partially correct answer lowers the ease from 2.5 to 2.36, so the
+intervals go 1, 6, 13 ... days. Multiple choice gives three of these grades automatically: the
+right option is **Correct**, any other option **Wrong**, and the **Do not know** button **Do not know**. A grade of
+3 or more counts as a correct answer for accuracy. The **Recent answers** table shows grade 0 as
+Do not know, 1-2 as Wrong, 3 as Partially correct and 4-5 as Correct.
 
 ## Commands
 
@@ -146,7 +149,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 636 tests, about 2 seconds
+pytest            # 640 tests, about 2 seconds
 ruff check .
 ```
 
