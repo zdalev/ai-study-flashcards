@@ -2,7 +2,7 @@
 
 - concurrent POSTs of the same new card or subject leave one row (checked against a live server by
   hand; this pins it for the test client with real threads);
-- a browser sends line breaks as CRLF: they are stored as LF and the quiz shows every line;
+- a browser sends line breaks as CRLF: they are stored as LF and the answer reveal shows every line;
 - unicode text round-trips; a question with a line break counts as a duplicate of the same text on
   one line;
 - adding a card leaves every other card and subject untouched;
@@ -18,6 +18,12 @@ from flashcards.cli import main
 from flashcards.storage import CardStore, open_db
 from flashcards.web import MAX_ANSWER_LEN, MAX_DECK_NAME_LEN, MAX_QUESTION_LEN
 from test_web_add import add, card_url, deck_rows, rows, text
+
+
+def reveal(client, deck_id, card_id=1):
+    """The answer step of the quiz for one card: the page that shows the correct answer."""
+    data = {"card_id": card_id, "step": "answer", "given_answer": ""}
+    return text(client.post(f"/decks/{deck_id}/quiz", data=data))
 
 
 def post_many(app, path, data, count=12):
@@ -61,7 +67,7 @@ def test_crlf_line_breaks_in_the_answer_are_stored_as_lf_and_shown(client, seed,
     deck_id = seed("Biology", questions=())
     add(client, deck_id, "Steps?", "first\r\nsecond\r\n\r\nthird\rfourth")
     assert rows(db_path)[0][3] == "first\nsecond\n\nthird\nfourth"
-    body = text(client.get(f"/decks/{deck_id}/quiz"))
+    body = reveal(client, deck_id)
     assert "first" in body and "second" in body and "third" in body
 
 
@@ -85,7 +91,8 @@ def test_unicode_question_and_answer_round_trip(client, seed, db_path):
     question, answer = "Größe von 日本語 😀?", "H₂O → café"
     assert add(client, deck_id, question, answer).status_code == 303
     assert rows(db_path)[0][2:4] == (question, answer)
-    body = text(client.get(f"/decks/{deck_id}/quiz"))
+    assert question in text(client.get(f"/decks/{deck_id}/quiz"))
+    body = reveal(client, deck_id)
     assert question in body and answer in body
 
 

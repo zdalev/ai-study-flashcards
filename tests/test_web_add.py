@@ -253,8 +253,11 @@ def test_hostile_question_and_answer_are_escaped_everywhere(client, seed):
     deck_id = seed("Biology", questions=())
     add(client, deck_id, f"{HOSTILE} Q", f"{HOSTILE} A")
     quiz = text(client.get(f"/decks/{deck_id}/quiz"))
-    assert HOSTILE not in quiz
-    assert ESCAPED in quiz
+    reveal = text(client.post(f"/decks/{deck_id}/quiz", data={"card_id": 1, "step": "answer"}))
+    for page in (quiz, reveal):
+        assert HOSTILE not in page
+        assert ESCAPED in page
+    assert reveal.count(ESCAPED) == 2  # the question and the correct answer
 
 
 def test_duplicate_message_escapes_a_hostile_deck_name(client, seed):
