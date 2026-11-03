@@ -11,8 +11,10 @@
   {% for summary in summaries %}
   <li class="deck">
     <div class="deck-head">
-      <h2>{{ summary.deck.name }}</h2>
+      <h2><a class="deck-link" href="{{ url_for('deck_stats', deck_id=summary.deck.id) }}">{{ summary.deck.name }}</a></h2>
       <span class="badge{% if summary.due %} has-due{% endif %}">{{ summary.due }} due</span>
+      <a class="deck-delete" href="{{ url_for('deck_delete', deck_id=summary.deck.id) }}"
+         title="Delete {{ summary.deck.name }}" aria-label="Delete {{ summary.deck.name }}">&times;</a>
     </div>
     <p class="muted">{{ summary.cards }} {{ "card" if summary.cards == 1 else "cards" }}</p>
     <div class="deck-study">
