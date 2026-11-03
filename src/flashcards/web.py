@@ -27,7 +27,7 @@ LABEL_WRONG = "Wrong"
 LABEL_PARTIAL = "Partially correct"
 LABEL_CORRECT = "Correct"
 # Write mode offers four answers; the server accepts any grade 0-5 (the scheduler is unchanged).
-GRADE_BUTTONS = ((0, LABEL_DO_NOT_KNOW), (1, LABEL_WRONG), (3, LABEL_PARTIAL), (4, LABEL_CORRECT))
+GRADE_BUTTONS = ((0, LABEL_DO_NOT_KNOW), (1, LABEL_WRONG), (2, LABEL_PARTIAL), (4, LABEL_CORRECT))
 MODE_WRITE = "write"
 MODE_CHOICE = "choice"
 MODES = (MODE_WRITE, MODE_CHOICE)
@@ -37,9 +37,9 @@ DONT_KNOW_FIELD = "dont_know"  # the form field of the "Do not know" button
 GRADE_DO_NOT_KNOW, GRADE_WRONG, GRADE_PARTIAL, GRADE_CORRECT = (
     0,
     1,
-    3,
+    2,
     4,
-)  # multiple choice gives all but 3
+)  # multiple choice gives all but 2
 HISTORY_ROWS = 20
 NO_VALUE = "\N{EM DASH}"
 MISSING = "-"  # a history cell with nothing recorded (reviews from before schema version 2)
@@ -137,7 +137,7 @@ def deck_stats(deck_id: int) -> str:
 
 
 def result_label(grade: int) -> str:
-    """The result for a logged grade: 0 Do not know, 1-2 Wrong, 3 Partially correct, 4-5 Correct."""
+    """The result for a logged grade: 0 Do not know, 1 Wrong, 2 Partially correct, 3-5 Correct."""
     if grade == GRADE_DO_NOT_KNOW:
         return LABEL_DO_NOT_KNOW
     if grade == GRADE_PARTIAL:
