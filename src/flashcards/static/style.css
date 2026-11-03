@@ -246,3 +246,17 @@ button.button { font: inherit; cursor: pointer; }
 .confirm-card { border-color: #f0c4bf; padding: 1.5rem 1.75rem; border-radius: 12px; }
 .confirm-card h1 { margin-bottom: 0.5rem; }
 .confirm-card .page-actions { justify-content: flex-end; margin-top: 1.25rem; }
+
+/* clickable subject tiles: the name link covers the whole tile; buttons sit above it */
+.deck { position: relative; transition: box-shadow 0.15s, border-color 0.15s; }
+.deck:hover { border-color: #b9c8e8; box-shadow: 0 4px 12px rgba(31, 41, 51, 0.1); }
+.deck-link { color: var(--text); text-decoration: none; }
+.deck-link::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.deck-link:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 2px; }
+.deck .button, .deck .badge, .deck-delete { position: relative; z-index: 1; }
+.deck-head h2 { flex: 1; min-width: 0; }
+.deck-delete {
+  flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%; display: grid; place-items: center;
+  color: var(--muted); text-decoration: none; font-size: 1.25rem; line-height: 1;
+}
+.deck-delete:hover, .deck-delete:focus-visible { background: #fdecea; color: #a3261b; }
