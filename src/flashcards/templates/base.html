@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="container">
+    <div class="container{% block width %}{% endblock %}">
       <a class="brand" href="{{ url_for('home') }}">AI study flashcards</a>
       <nav>
         <a href="{{ url_for('home') }}">Home</a>
@@ -16,7 +16,7 @@
       </nav>
     </div>
   </header>
-  <main class="container">
+  <main class="container{{ self.width() }}">
     {% block content %}{% endblock %}
   </main>
 </body>
