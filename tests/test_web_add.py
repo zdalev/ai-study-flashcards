@@ -282,7 +282,7 @@ def test_get_new_subject_form(client):
     body = text(response)
     assert response.status_code == 200
     assert 'name="name"' in body
-    assert "New subject" in body
+    assert "New flashcards" in body
 
 
 def test_new_subject_is_created_and_redirects_to_its_card_form(client, db_path):
@@ -321,7 +321,7 @@ def test_duplicate_subject_name_reuses_the_deck(client, seed, db_path):
 def test_blank_subject_name_is_400(client, db_path, name):
     response = client.post("/decks/new", data={"name": name})
     assert response.status_code == 400
-    assert "Please enter a subject name." in text(response)
+    assert "Please enter a name." in text(response)
     assert deck_rows(db_path) == []
 
 
@@ -375,7 +375,7 @@ def test_home_links_to_new_subject_and_add_card(client, seed):
 
 def test_empty_home_links_to_new_subject(client):
     body = text(client.get("/"))
-    assert "There are no subjects yet" in body
+    assert "There are no flashcards yet" in body
     assert 'href="/decks/new"' in body
 
 
