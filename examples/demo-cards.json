@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "decks": [
+    {
+      "name": "biology",
+      "source": "examples/biology.md",
+      "cards": [
+        {"question": "What is the basic unit of life?", "answer": "The cell."},
+        {"question": "What is the main difference between prokaryotic and eukaryotic cells?", "answer": "Prokaryotic cells have no nucleus; eukaryotic cells keep their DNA inside a membrane-bound nucleus."},
+        {"question": "Which organelle releases energy from glucose through cellular respiration?", "answer": "The mitochondria."},
+        {"question": "Which organelles build proteins in a cell?", "answer": "Ribosomes."},
+        {"question": "What controls what enters and leaves a cell?", "answer": "The cell membrane."},
+        {"question": "What is the plant cell wall made of?", "answer": "Cellulose."},
+        {"question": "What is the word equation for photosynthesis?", "answer": "Carbon dioxide + water -> glucose + oxygen (light energy is needed)."},
+        {"question": "Through which tiny pores in the leaves is oxygen released?", "answer": "Stomata."}
+      ]
+    },
+    {
+      "name": "english",
+      "source": "examples/english.txt",
+      "cards": [
+        {"question": "What does a noun name?", "answer": "A person, place, thing or idea."},
+        {"question": "What can an adverb describe?", "answer": "A verb, an adjective or another adverb."},
+        {"question": "What does a preposition such as \"in\" or \"under\" show?", "answer": "The relationship between a noun and another word in the sentence."},
+        {"question": "How is the present perfect tense formed in English?", "answer": "\"Have\" or \"has\" plus the past participle, as in \"I have finished my homework\"."},
+        {"question": "What are the minimum parts a sentence needs?", "answer": "A subject and a verb."},
+        {"question": "What does a complex sentence contain?", "answer": "A main clause and at least one subordinate clause."},
+        {"question": "How does a simile differ from a metaphor?", "answer": "A simile compares two things using \"like\" or \"as\"; a metaphor says one thing is another."},
+        {"question": "What is personification?", "answer": "Giving human qualities to something that is not human."}
+      ]
+    },
+    {
+      "name": "mathematics",
+      "source": "examples/mathematics.md",
+      "cards": [
+        {"question": "What is the general form of a quadratic equation?", "answer": "ax^2 + bx + c = 0, where a is not zero."},
+        {"question": "What is the quadratic formula?", "answer": "x = (-b +/- sqrt(b^2 - 4ac)) / (2a)"},
+        {"question": "What is the discriminant of a quadratic equation?", "answer": "b^2 - 4ac"},
+        {"question": "How many real solutions does a quadratic equation have when its discriminant is negative?", "answer": "None."},
+        {"question": "What do the angles in any triangle add up to?", "answer": "180 degrees."},
+        {"question": "What does the Pythagorean theorem state for a right-angled triangle?", "answer": "a^2 + b^2 = c^2, where c is the hypotenuse."},
+        {"question": "What is the area of a triangle?", "answer": "Half the base times the height."},
+        {"question": "What is the area of a circle with radius r?", "answer": "pi * r^2"}
+      ]
+    },
+    {
+      "name": "physics",
+      "source": "examples/physics.txt",
+      "cards": [
+        {"question": "How is speed calculated?", "answer": "Distance travelled divided by the time taken."},
+        {"question": "Why is velocity a vector while speed is a scalar?", "answer": "Velocity is speed in a given direction."},
+        {"question": "What is the acceleration due to gravity near the Earth's surface?", "answer": "About 9.8 m/s^2."},
+        {"question": "What does Newton's first law state?", "answer": "An object stays at rest or moves at constant velocity unless a resultant force acts on it."},
+        {"question": "What is Newton's second law as an equation?", "answer": "F = ma (force equals mass times acceleration)."},
+        {"question": "What does the law of conservation of energy say?", "answer": "Energy cannot be created or destroyed, only transferred from one form to another."},
+        {"question": "What is the formula for kinetic energy?", "answer": "One half times mass times velocity squared."},
+        {"question": "In what unit is power measured?", "answer": "Watts (W)."}
+      ]
+    },
+    {
+      "name": "programming",
+      "source": "examples/programming.md",
+      "cards": [
+        {"question": "What does it mean that Python is dynamically typed?", "answer": "A variable has no fixed type; the value it refers to does."},
+        {"question": "How does a tuple differ from a list in Python?", "answer": "A tuple cannot be changed after it is created; a list can."},
+        {"question": "What does a Python dictionary store?", "answer": "Key-value pairs, looked up by key."},
+        {"question": "When does a Python while loop stop repeating?", "answer": "When its condition is no longer true."},
+        {"question": "Which keyword defines a function in Python?", "answer": "def"},
+        {"question": "What does a Python function without a return statement give back?", "answer": "None."},
+        {"question": "Which exception does dividing by zero raise in Python?", "answer": "ZeroDivisionError."},
+        {"question": "When does the code in a finally block run?", "answer": "Whether or not an exception happened."}
+      ]
+    }
+  ]
+}
