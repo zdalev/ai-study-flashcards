@@ -219,3 +219,29 @@ def test_delete_with_history_keeps_other_stats_page_working(client, seed, db_pat
     client.post(delete_url(gone))
     body = text(client.get(f"/decks/{kept}/stats"))
     assert "Recent answers" in body and "pill" in body
+
+
+# --- home tiles: the tile opens the stats page, the X opens the delete confirm page ---
+
+
+def test_home_tile_name_links_to_the_subject_stats(client, seed):
+    deck_id = seed("Biology")
+    body = text(client.get("/"))
+    assert f'<a class="deck-link" href="/decks/{deck_id}/stats">Biology</a>' in body
+
+
+def test_home_tile_x_opens_the_confirm_page_and_deletes_nothing(client, seed, db_path):
+    deck_id = seed("Biology")
+    body = text(client.get("/"))
+    assert f'<a class="deck-delete" href="/decks/{deck_id}/delete"' in body
+    assert 'aria-label="Delete Biology"' in body
+    confirm = client.get(delete_url(deck_id))
+    assert confirm.status_code == 200 and "Delete Biology?" in text(confirm)
+    assert count(db_path, "decks") == 1
+
+
+def test_home_tile_links_escape_the_deck_name(client, seed):
+    seed(HOSTILE)
+    body = text(client.get("/"))
+    assert HOSTILE not in body
+    assert f'aria-label="Delete {ESCAPED}"' in body

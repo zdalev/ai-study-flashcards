@@ -158,7 +158,7 @@ and never drops below 1.3.
 ## Testing
 
 ```bash
-pytest            # 676 tests, about 2 seconds
+pytest            # 679 tests, about 2 seconds
 ruff check .
 ```
 
