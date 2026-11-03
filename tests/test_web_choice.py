@@ -17,7 +17,8 @@ from flashcards.web import create_app
 HOSTILE = "<script>alert(1)</script>"
 ESCAPED = "&lt;script&gt;alert(1)&lt;/script&gt;"
 TOMORROW = WEB_TODAY + timedelta(days=1)
-OPTION = re.compile(r'<button[^>]*name="choice"[^>]*value="(\w+)"[^>]*>([^<]*)</button>')
+OPTION = re.compile(r'<button[^>]*name="choice"[^>]*value="([^"]*)"[^>]*>([^<]*)</button>')
+DONT_KNOW = re.compile(r'<button[^>]*name="dont_know"[^>]*value="([^"]*)"[^>]*>([^<]*)</button>')
 
 
 def text(response):
@@ -29,12 +30,20 @@ def quiz_url(deck_id, mode="choice"):
 
 
 def options_of(response):
-    """[(posted value, option text)] of a choice page, the "I don't know" button included."""
-    return [(value, html.unescape(label)) for value, label in OPTION.findall(text(response))]
+    """[(posted value, option text)] of a choice page; the "I don't know" button is not included."""
+    return [
+        (html.unescape(value), html.unescape(label))
+        for value, label in OPTION.findall(text(response))
+    ]
+
+
+def dont_know_button(response):
+    """[(posted value, label)] of the "I don't know" button (one entry on a choice page)."""
+    return DONT_KNOW.findall(text(response))
 
 
 def real_options(response):
-    return [label for value, label in options_of(response) if value != "idk"]
+    return [label for _value, label in options_of(response)]
 
 
 def choose(client, deck_id, card_id, choice, **extra):
@@ -42,8 +51,14 @@ def choose(client, deck_id, card_id, choice, **extra):
     return client.post(f"/decks/{deck_id}/quiz", data=data)
 
 
-def index_of(response, answer):
-    """The posted value of the option showing `answer`."""
+def dont_know(client, deck_id, card_id, **extra):
+    """Click "I don't know"."""
+    data = {"card_id": card_id, "mode": "choice", "dont_know": "1", **extra}
+    return client.post(f"/decks/{deck_id}/quiz", data=data)
+
+
+def value_of(response, answer):
+    """The posted value of the option showing `answer` (the option text itself)."""
     return next(value for value, label in options_of(response) if label == answer)
 
 
@@ -119,8 +134,8 @@ def test_choice_page_shows_the_question_four_options_and_i_dont_know(client, db_
     assert response.status_code == 200
     assert "Q1?" in body
     options = options_of(response)
-    assert [value for value, _label in options] == ["0", "1", "2", "3", "idk"]
-    assert options[-1][1] == "I don't know"
+    assert len(options) == 4 and all(value == label for value, label in options)
+    assert dont_know_button(response) == [("1", "I don't know")]
     assert re.search(r'name="card_id" value="1"', body)
     assert re.search(r'name="mode" value="choice"', body)
     assert "<textarea" not in body and "Save answer" not in body
@@ -219,13 +234,12 @@ def test_the_write_page_has_no_fallback_note(client, db_path):
     assert "Multiple choice needs" not in text(client.get(quiz_url(deck_id, "write")))
 
 
-def test_posting_a_choice_to_a_deck_that_is_too_small_saves_nothing(client, db_path):
+def test_a_choice_posted_to_a_deck_that_has_become_small_is_graded_on_the_text_it_showed(
+    client, db_path
+):
     deck_id = add_cards(db_path, "Small", [("Q1?", "a"), ("Q2?", "b")])
-    before = snapshot(db_path)
-    response = choose(client, deck_id, 1, "0")
-    assert response.status_code == 303
-    assert response.headers["Location"].endswith(f"/decks/{deck_id}/quiz?mode=choice")
-    assert snapshot(db_path) == before
+    assert choose(client, deck_id, 1, "b").status_code == 200  # a page shown earlier, when bigger
+    assert reviews_of(db_path) == [(1, WEB_TODAY.isoformat(), 1, "choice", "b")]
 
 
 # --- answering: grades and SM-2 state ---
@@ -234,7 +248,7 @@ def test_posting_a_choice_to_a_deck_that_is_too_small_saves_nothing(client, db_p
 def test_the_right_option_saves_grade_4_and_the_sm2_state(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
-    response = choose(client, deck_id, 1, index_of(page, "A1"))
+    response = choose(client, deck_id, 1, value_of(page, "A1"))
     assert response.status_code == 200
     state = card_state(db_path, 1)
     assert (state.repetitions, state.interval_days) == (1, 1)
@@ -258,7 +272,7 @@ def test_a_wrong_option_saves_grade_1_and_the_chosen_text(client, db_path):
 
 def test_i_dont_know_saves_grade_0_and_an_empty_answer(client, db_path):
     deck_id = deck_of_five(db_path)
-    assert choose(client, deck_id, 1, "idk").status_code == 200
+    assert dont_know(client, deck_id, 1).status_code == 200
     state = card_state(db_path, 1)
     assert (state.repetitions, state.interval_days) == (0, 1)
     assert state.due_date == TOMORROW and state.ease_factor == 1.7
@@ -281,7 +295,7 @@ def test_right_options_keep_the_ease_and_lengthen_the_interval(client, db_path):
         app = create_app({"TESTING": True, "DATABASE": str(db_path), "TODAY": day})
         only_due(db_path, 1, day)
         page = app.test_client().get(quiz_url(deck_id))
-        assert choose_on(app, deck_id, 1, index_of(page, "A1")).status_code == 200
+        assert choose_on(app, deck_id, 1, value_of(page, "A1")).status_code == 200
         state = card_state(db_path, 1)
         assert state.interval_days == interval and state.ease_factor == 2.5
 
@@ -296,7 +310,7 @@ def choose_on(app, deck_id, card_id, choice):
 def test_the_result_page_shows_choice_correct_answer_result_and_next_link(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
-    body = text(choose(client, deck_id, 1, index_of(page, "A1")))
+    body = text(choose(client, deck_id, 1, value_of(page, "A1")))
     assert "Q1?" in body
     assert body.index("Your choice") < body.index("A1") < body.index("Correct answer")
     assert re.search(r">\s*Correct\s*</p>", body)
@@ -313,7 +327,7 @@ def test_the_result_page_for_a_wrong_option_and_for_i_dont_know(client, db_path)
     wrong = text(choose(client, deck_id, 1, wrong_value))
     assert re.search(r">\s*Wrong\s*</p>", wrong)
     assert wrong_text in wrong and "A1" in wrong
-    idk = text(choose(client, deck_id, 2, "idk"))
+    idk = text(dont_know(client, deck_id, 2))
     assert re.search(r">\s*No idea\s*</p>", idk)
     assert "(no answer)" in idk and "A2" in idk
 
@@ -324,7 +338,7 @@ def test_the_result_page_escapes_everything(client, db_path):
     )
     page = client.get(quiz_url(deck_id))
     correct = f"{HOSTILE} answer 1"
-    body = text(choose(client, deck_id, 1, index_of(page, correct)))
+    body = text(choose(client, deck_id, 1, value_of(page, correct)))
     assert HOSTILE not in body
     assert body.count(ESCAPED) == 3  # question, your choice, correct answer
 
@@ -337,7 +351,7 @@ def test_next_card_link_leads_to_the_next_card_and_then_the_done_page(client, db
         question = re.search(r'class="question">([^<]*)<', text(page)).group(1)
         asked.append(question)
         card_id = int(question[1:-1])
-        body = text(choose(client, deck_id, card_id, index_of(page, f"A{card_id}")))
+        body = text(choose(client, deck_id, card_id, value_of(page, f"A{card_id}")))
         assert f"/decks/{deck_id}/quiz?mode=choice" in body
     assert sorted(asked) == ["Q1?", "Q2?", "Q3?", "Q4?"]
     done = text(client.get(quiz_url(deck_id)))
@@ -350,9 +364,9 @@ def test_next_card_link_leads_to_the_next_card_and_then_the_done_page(client, db
 def test_a_refresh_of_the_result_page_is_ignored(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
-    choose(client, deck_id, 1, index_of(page, "A1"))
+    choose(client, deck_id, 1, value_of(page, "A1"))
     before = snapshot(db_path)
-    again = choose(client, deck_id, 1, "idk")
+    again = dont_know(client, deck_id, 1)
     assert again.status_code == 303
     assert again.headers["Location"].endswith(f"/decks/{deck_id}/quiz?mode=choice")
     assert snapshot(db_path) == before
@@ -366,7 +380,7 @@ def test_a_card_that_is_not_due_is_not_reviewed(client, db_path):
         conn.execute("UPDATE cards SET due_date = '2099-01-01' WHERE id = 1")
     conn.close()
     before = snapshot(db_path)
-    assert choose(client, deck_id, 1, "0").status_code == 303
+    assert choose(client, deck_id, 1, "A1").status_code == 303
     assert snapshot(db_path) == before
 
 
@@ -379,7 +393,7 @@ def test_parallel_submits_of_the_same_choice_log_one_review(app, db_path):
     def submit():
         client = app.test_client()
         start.wait(timeout=10)
-        statuses.append(choose(client, deck_id, 1, "idk").status_code)
+        statuses.append(dont_know(client, deck_id, 1).status_code)
 
     workers = [threading.Thread(target=submit) for _ in range(threads)]
     for worker in workers:
@@ -396,7 +410,29 @@ def test_parallel_submits_of_the_same_choice_log_one_review(app, db_path):
 
 @pytest.mark.parametrize(
     "choice",
-    ["4", "5", "-1", "x", "1.5", "", " 1", "1 ", "01", "+1", "IDK", "١", "99999999999999999999"],
+    # Index-style values (the old form), text that is not an answer of the subject, and the
+    # old "idk" value: only the text of an answer of the same subject is accepted.
+    [
+        "0",
+        "1",
+        "3",
+        "4",
+        "-1",
+        "x",
+        "1.5",
+        "",
+        " ",
+        "idk",
+        "IDK",
+        "١",
+        "99999999999999999999",
+        "A",
+        "A11",
+        "A1A2",
+        "<script>alert(1)</script>",
+        "A6",
+        "a" * 5000,
+    ],  # fmt: skip
 )
 def test_a_tampered_choice_gives_400_and_saves_nothing(client, db_path, choice):
     deck_id = deck_of_five(db_path)
@@ -415,10 +451,27 @@ def test_a_missing_choice_gives_400(client, db_path):
     assert snapshot(db_path) == before
 
 
-def test_choosing_an_option_text_instead_of_an_index_gives_400(client, db_path):
+def test_an_answer_of_another_subject_gives_400(client, db_path):
+    biology = deck_of_five(db_path)
+    add_cards(db_path, "Physics", [("P?", "Only in physics")])
+    before = snapshot(db_path)
+    assert choose(client, biology, 1, "Only in physics").status_code == 400
+    assert snapshot(db_path) == before
+
+
+def test_answers_that_differ_only_in_case_or_spacing_are_accepted(client, db_path):
     deck_id = deck_of_five(db_path)
-    assert choose(client, deck_id, 1, "A1").status_code == 400
-    assert reviews_of(db_path) == []
+    assert choose(client, deck_id, 1, "  a1 ").status_code == 200
+    assert choose(client, deck_id, 2, "A  3").status_code == 400  # a different text
+    assert choose(client, deck_id, 3, " a 4").status_code == 400
+    assert choose(client, deck_id, 4, "a5").status_code == 200
+    assert [row[2:] for row in reviews_of(db_path)] == [(4, "choice", "A1"), (1, "choice", "A5")]
+
+
+def test_a_choice_and_i_dont_know_together_count_as_i_dont_know(client, db_path):
+    deck_id = deck_of_five(db_path)
+    choose(client, deck_id, 1, "A1", dont_know="1")
+    assert [row[2:] for row in reviews_of(db_path)] == [(0, "choice", "")]
 
 
 def test_the_answer_step_in_choice_mode_gives_400_not_a_reveal(client, db_path):
@@ -431,7 +484,7 @@ def test_the_answer_step_in_choice_mode_gives_400_not_a_reveal(client, db_path):
 def test_a_bad_card_id_gives_400(client, db_path, card_id):
     deck_id = deck_of_five(db_path)
     before = snapshot(db_path)
-    assert choose(client, deck_id, card_id, "0").status_code == 400
+    assert choose(client, deck_id, card_id, "A1").status_code == 400
     assert snapshot(db_path) == before
 
 
@@ -439,10 +492,10 @@ def test_unknown_and_foreign_cards_give_404(client, db_path):
     biology = deck_of_five(db_path)
     physics = add_cards(db_path, "Physics", [("P?", "p")])
     before = snapshot(db_path)
-    assert choose(client, biology, 999, "0").status_code == 404
-    assert choose(client, biology, 6, "0").status_code == 404  # card 6 belongs to physics
-    assert choose(client, 999, 1, "0").status_code == 404
-    assert choose(client, physics, 1, "0").status_code == 404
+    assert choose(client, biology, 999, "A1").status_code == 404
+    assert choose(client, biology, 6, "A1").status_code == 404  # card 6 belongs to physics
+    assert choose(client, 999, 1, "A1").status_code == 404
+    assert choose(client, physics, 1, "A1").status_code == 404
     assert snapshot(db_path) == before
 
 
@@ -567,12 +620,12 @@ def test_all_stats_page_has_no_history_table(client, db_path):
 def test_accuracy_counts_choice_reviews_with_grade_4_as_correct(client, db_path):
     deck_id = deck_of_five(db_path)
     page = client.get(quiz_url(deck_id))
-    choose(client, deck_id, 1, index_of(page, "A1"))  # correct
+    choose(client, deck_id, 1, value_of(page, "A1"))  # correct
     wrong_value = next(
         v for v, t in options_of(client.get(quiz_url(deck_id))) if t not in ("A2", "I don't know")
     )
     choose(client, deck_id, 2, wrong_value)  # wrong
-    choose(client, deck_id, 3, "idk")  # no idea
+    dont_know(client, deck_id, 3)  # no idea
     log_review(db_path, 4, 4, mode="write", given="ok")  # a write review counts too
     body = text(client.get(f"/decks/{deck_id}/stats"))
     assert "50% (2/4)" in body

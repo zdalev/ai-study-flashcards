@@ -29,7 +29,7 @@ MODE_CHOICE = "choice"
 MODES = (MODE_WRITE, MODE_CHOICE)
 MODE_LABELS = {MODE_WRITE: "Write", MODE_CHOICE: "Multiple choice"}
 OPTION_COUNT = 4  # the correct answer plus three others
-CHOICE_DONT_KNOW = "idk"  # the value posted by the "I don't know" button
+DONT_KNOW_FIELD = "dont_know"  # the form field of the "I don't know" button
 GRADE_NO_IDEA, GRADE_WRONG, GRADE_CORRECT = 0, 1, 4  # the grades multiple choice gives
 HISTORY_ROWS = 20
 NO_VALUE = "\N{EM DASH}"
@@ -281,28 +281,38 @@ def submit_grade(store: CardStore, deck_id: int) -> Response:
     return redirect(url_for("quiz", deck_id=deck_id, mode=mode), code=303)
 
 
+def grade_choice(store: CardStore, card: Card) -> tuple[str, int]:
+    """The (shown answer text, grade) of the posted multiple-choice answer; 400 when invalid.
+
+    The page posts the text of the clicked option, never an index, so the grade does not depend
+    on options rebuilt later (a new day or a new card changes them). The text must be the correct
+    answer or another answer of the same subject; case and spacing do not matter.
+    """
+    if DONT_KNOW_FIELD in request.form:
+        return "", GRADE_NO_IDEA
+    if "choice" not in request.form:
+        abort(400)
+    given_key = answer_key(form_text("choice"))
+    if given_key == answer_key(card.answer):
+        return card.answer, GRADE_CORRECT
+    for _deck_name, other in store.cards_with_deck_names(card.deck_id):
+        if answer_key(other.answer) == given_key:
+            return other.answer, GRADE_WRONG
+    abort(400)
+
+
 def submit_choice(store: CardStore, deck: Deck) -> str | Response:
     """Grade a multiple-choice answer automatically, save it and show the result.
 
-    The options are rebuilt from the card and the day, so the posted `choice` is an index into
-    them (or "idk") and a tampered value gives 400. A repeated submit finds the card not due
-    and goes back to the quiz.
+    The posted `choice` is the text of the clicked option (or the "I don't know" button is used),
+    so the answer is graded on what the page showed. Text that is not an answer of the subject
+    gives 400. A repeated submit finds the card not due and goes back to the quiz.
     """
     card = form_card(store, deck.id)
     back = redirect(url_for("quiz", deck_id=deck.id, mode=MODE_CHOICE), code=303)
     if not scheduler.is_due(card.state, today()):
         return back
-    options = choice_options(store, card)
-    if options is None:  # the deck lost answers since the page was shown
-        return back
-    choice = request.form.get("choice", "")
-    if choice == CHOICE_DONT_KNOW:
-        given, grade = "", GRADE_NO_IDEA
-    elif choice in {str(index) for index in range(len(options))}:
-        given = options[int(choice)]
-        grade = GRADE_CORRECT if given == card.answer else GRADE_WRONG
-    else:
-        abort(400)
+    given, grade = grade_choice(store, card)
     new_state = scheduler.review(card.state, grade, today())
     if not store.save_review(card.id, new_state, grade, mode=MODE_CHOICE, given_answer=given):
         return back  # a parallel request reviewed the card first
