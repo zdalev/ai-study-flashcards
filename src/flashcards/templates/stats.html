@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% set heading = (deck.name[:1]|upper ~ deck.name[1:]) if deck else "All subjects" %}
+{% set heading = (deck.name[:1]|upper ~ deck.name[1:]) if deck else "All flashcards" %}
 {% block title %}Stats: {{ heading }}{% endblock %}
 {% block width %} wide{% endblock %}
 {% block content %}
 <div class="study-head">
   <div>
-    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Stats</p>
+    <p class="crumb"><a href="{{ url_for('home') }}">Flashcards</a> / Stats</p>
     <h1>Stats: {{ heading }}</h1>
   </div>
   {% if deck %}
@@ -51,13 +51,13 @@
 </table>
 </div>
 {% else %}
-<p class="empty">No answers yet. Study this subject and your latest answers show up here.</p>
+<p class="empty">No answers yet. Study these flashcards and your latest answers show up here.</p>
 {% endif %}
 {% endif %}
 <div class="page-actions">
   {% if deck %}<a class="button secondary" href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a>
-  <a class="button secondary" href="{{ url_for('all_stats') }}">All subjects stats</a>{% endif %}
-  <a class="button secondary" href="{{ url_for('home') }}">Back to subjects</a>
-  {% if deck %}<a class="button danger" href="{{ url_for('deck_delete', deck_id=deck.id) }}">Delete subject</a>{% endif %}
+  <a class="button secondary" href="{{ url_for('all_stats') }}">All flashcards stats</a>{% endif %}
+  <a class="button secondary" href="{{ url_for('home') }}">Back to flashcards</a>
+  {% if deck %}<a class="button danger" href="{{ url_for('deck_delete', deck_id=deck.id) }}">Delete flashcards</a>{% endif %}
 </div>
 {% endblock %}
