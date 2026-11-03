@@ -12,9 +12,9 @@
     <h2>Choose the answer</h2>
     <div class="options">
       {% for option in options %}
-      <button type="submit" name="choice" value="{{ loop.index0 }}">{{ option }}</button>
+      <button type="submit" name="choice" value="{{ option }}">{{ option }}</button>
       {% endfor %}
-      <button type="submit" name="choice" value="idk" class="dont-know">I don't know</button>
+      <button type="submit" name="dont_know" value="1" class="dont-know">I don't know</button>
     </div>
   </form>
 </section>
