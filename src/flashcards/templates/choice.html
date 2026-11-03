@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Study: {{ deck.name }}{% endblock %}
 {% block content %}
-<h1>Study: {{ deck.name }}</h1>
-<p class="muted">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</p>
-<section class="card">
+<div class="study-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Multiple choice</p>
+    <h1>Study: {{ deck.name[:1]|upper }}{{ deck.name[1:] }}</h1>
+  </div>
+  <span class="badge has-due">{{ due_count }} {{ "card" if due_count == 1 else "cards" }} due</span>
+</div>
+<section class="card study-card">
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>
   <form method="post" action="{{ url_for('quiz', deck_id=deck.id) }}">
@@ -18,6 +23,6 @@
     </div>
   </form>
 </section>
-<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+<p class="study-foot"><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}

@@ -1,21 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Study: {{ deck.name }}{% endblock %}
 {% block content %}
-<h1>Study: {{ deck.name }}</h1>
-<section class="card">
+<div class="study-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('home') }}">Subjects</a> / Multiple choice</p>
+    <h1>Study: {{ deck.name[:1]|upper }}{{ deck.name[1:] }}</h1>
+  </div>
+  
+</div>
+<section class="card study-card">
+  <p class="result {{ result_class }}">{{ result }}</p>
   <p class="label">Question</p>
   <p class="question">{{ card.question }}</p>
-  <p class="label">Your choice</p>
-  {% if given_answer %}
-  <p class="answer">{{ given_answer }}</p>
-  {% else %}
-  <p class="answer muted">(no answer)</p>
-  {% endif %}
-  <p class="label">Correct answer</p>
-  <p class="answer">{{ card.answer }}</p>
-  <p class="result {{ result_class }}">{{ result }}</p>
-  <p><a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Next card</a></p>
+  <div class="compare">
+    <div class="compare-box">
+      <p class="label">Your choice</p>
+      {% if given_answer %}
+      <p class="answer">{{ given_answer }}</p>
+      {% else %}
+      <p class="answer muted">(no answer)</p>
+      {% endif %}
+    </div>
+    <div class="compare-box correct-box">
+      <p class="label">Correct answer</p>
+      <p class="answer">{{ card.answer }}</p>
+    </div>
+  </div>
+  <div class="form-actions">
+    <a class="button" href="{{ url_for('quiz', deck_id=deck.id, mode='choice') }}">Next card</a>
+  </div>
 </section>
-<p><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
+<p class="study-foot"><a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}

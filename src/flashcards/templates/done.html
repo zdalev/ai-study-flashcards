@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Done for today: {{ deck.name }}{% endblock %}
 {% block content %}
-<h1>Done for today: {{ deck.name }}</h1>
-<p>No cards are due in this subject.</p>
+<section class="card done-card">
+  <p class="done-mark">&#10003;</p>
+  <h1>Done for today: {{ deck.name[:1]|upper }}{{ deck.name[1:] }}</h1>
+  <p class="muted">No cards are due in this subject.</p>
+</section>
 <table class="stats">
   <tbody>
     <tr><th scope="row">Reviewed today</th><td>{{ reviewed_today }}</td></tr>
@@ -10,7 +13,7 @@
     <tr><th scope="row">Next due</th><td>{{ next_due }}</td></tr>
   </tbody>
 </table>
-<p><a href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a> &middot;
+<p class="study-foot"><a href="{{ url_for('card_new', deck_id=deck.id) }}">Add card</a> &middot;
   <a href="{{ url_for('deck_stats', deck_id=deck.id) }}">Stats for this subject</a> &middot;
   <a href="{{ url_for('home') }}">Back to subjects</a></p>
 {% endblock %}
